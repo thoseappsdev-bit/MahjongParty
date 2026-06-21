@@ -22,6 +22,7 @@ jobs:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       VITE_DISCORD_CLIENT_ID: ${{ secrets.VITE_DISCORD_CLIENT_ID }}
+      MAHJONG_PRODUCTION_URL: ${{ vars.MAHJONG_PRODUCTION_URL || 'https://mahjong-party.youraimates.workers.dev' }}
 
     steps:
       - name: Check out repository
@@ -43,5 +44,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Scan tracked files for secrets
+        run: pnpm security:secrets
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build packages and app
+        run: pnpm build
+
+      - name: Check Cloudflare deploy config
+        run: pnpm check:cloudflare
+
+      - name: Run production readiness checks
+        run: pnpm production:check
+
       - name: Deploy to Cloudflare
         run: pnpm deploy:cloudflare
+
+      - name: Smoke deployed Worker
+        run: pnpm production:smoke -- "$MAHJONG_PRODUCTION_URL"

@@ -89,6 +89,37 @@ check("CI runs secret scan, tests, build, Cloudflare dry-run, and production che
   }
 });
 
+check("deploy workflow runs gates and smoke after deploy", () => {
+  const deploy = read(".github/workflows/cloudflare-deploy.yml");
+  for (const command of [
+    "pnpm security:secrets",
+    "pnpm test",
+    "pnpm build",
+    "pnpm check:cloudflare",
+    "pnpm production:check",
+    "pnpm deploy:cloudflare",
+    "pnpm production:smoke",
+  ]) {
+    assert(deploy.includes(command), `deploy workflow does not run ${command}`);
+  }
+  assert(deploy.includes("MAHJONG_PRODUCTION_URL"), "deploy workflow does not expose MAHJONG_PRODUCTION_URL");
+
+  const deployOrder = [
+    "pnpm security:secrets",
+    "pnpm test",
+    "pnpm build",
+    "pnpm check:cloudflare",
+    "pnpm production:check",
+    "pnpm deploy:cloudflare",
+    "pnpm production:smoke",
+  ].map((command) => deploy.indexOf(command));
+  assert(deployOrder.every((index) => index >= 0), "deploy workflow order check could not find all commands");
+  assert(deployOrder.every((index, position) => position === 0 || index > deployOrder[position - 1]), "deploy workflow gates are not ordered before deploy/smoke");
+
+  const releaseDoc = read("docs/production-release.md");
+  assert(releaseDoc.includes("MAHJONG_PRODUCTION_URL"), "production release docs do not mention MAHJONG_PRODUCTION_URL");
+  assert(releaseDoc.includes("reruns the production gates before deploy"), "production release docs do not describe deploy workflow gates");
+});
 check("manual deploy uses Cloudflare and public client secrets only", () => {
   const deploy = read(".github/workflows/cloudflare-deploy.yml");
   for (const secret of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_DISCORD_CLIENT_ID"]) {

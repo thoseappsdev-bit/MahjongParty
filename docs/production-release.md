@@ -8,7 +8,7 @@ This checklist covers the GitHub Actions release path for the Cloudflare-hosted 
 - `CodeQL` runs on pushes to `main`, pull requests to `main`, and a weekly schedule.
 - `CI` installs with `pnpm install --frozen-lockfile`, then runs `pnpm test` and `pnpm build`.
 - `Deploy Cloudflare` is manual-only through GitHub Actions `workflow_dispatch`.
-- `Deploy Cloudflare` installs dependencies and runs `pnpm deploy:cloudflare`.
+- `Deploy Cloudflare` installs dependencies, runs `pnpm security:secrets`, `pnpm test`, `pnpm build`, `pnpm check:cloudflare`, `pnpm production:check`, deploys, then runs `pnpm production:smoke`.
 - The deploy workflow uses the `production` GitHub Environment. Add required reviewers there if production deploys should be gated.
 
 ## GitHub Repository Protection
@@ -33,6 +33,7 @@ Set these in GitHub repository or environment secrets before running the manual 
 | `VITE_SUPABASE_URL` | Browser-safe Supabase project URL embedded into the Vite production build. |
 | `VITE_SUPABASE_ANON_KEY` | Browser-safe Supabase anon key embedded into the Vite production build. |
 | `VITE_DISCORD_CLIENT_ID` | Browser-safe Discord application client id for Activity mode. |
+| `MAHJONG_PRODUCTION_URL` | Optional GitHub Actions variable, not a secret. Used by post-deploy smoke tests. Defaults to `https://mahjong-party.youraimates.workers.dev`. |
 
 Do not put real secret values in workflow files or docs. Use only GitHub Secret names such as `${{ secrets.CLOUDFLARE_API_TOKEN }}`.
 
@@ -147,7 +148,7 @@ pnpm production:smoke -- https://<production-host>
 1. Confirm CI and CodeQL are green on the commit that will be deployed.
 2. Confirm required GitHub Secrets exist in the repository or `production` environment.
 3. Confirm required Cloudflare Worker secrets exist for the deployed Worker.
-4. Run the manual `Deploy Cloudflare` workflow from GitHub Actions.
+4. Run the manual `Deploy Cloudflare` workflow from GitHub Actions. The workflow reruns the production gates before deploy and smoke-tests `MAHJONG_PRODUCTION_URL` after deploy.
 5. Run `pnpm production:smoke -- https://<production-host>` and open `/health`.
 6. Launch the Discord Activity from a test server and confirm the Activity opens the production host.
 
