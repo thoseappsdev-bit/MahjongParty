@@ -4,6 +4,7 @@
 
 ## Verification
 
+- [ ] `pnpm security:secrets`
 - [ ] `pnpm test`
 - [ ] `pnpm build`
 - [ ] `pnpm check:cloudflare`

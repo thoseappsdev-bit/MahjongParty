@@ -6,10 +6,12 @@ labels: release
 
 ## Gates
 
+- [ ] `pnpm security:secrets`
 - [ ] `pnpm test`
 - [ ] `pnpm build`
 - [ ] `pnpm check:cloudflare`
 - [ ] `pnpm production:check`
+- [ ] `pnpm production:smoke -- https://<production-host>`
 
 ## External Checks
 

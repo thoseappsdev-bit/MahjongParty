@@ -132,13 +132,15 @@ as templates only. Never commit real `.env` files, Cloudflare tokens, Supabase s
 Run these before a release candidate is considered ready:
 
 ```bash
+pnpm security:secrets
 pnpm test
 pnpm build
 pnpm check:cloudflare
 pnpm production:check
+pnpm production:smoke -- https://<production-host>
 ```
 
-`pnpm production:check` verifies release automation files, gitignored local secrets, Worker observability/Durable Object config, static security headers, the 350 KB entry bundle budget, and CI/deploy workflow guardrails. It is a guardrail, not a replacement for real multiplayer QA.
+`pnpm security:secrets` scans tracked files for committed secrets and forbidden local/generated paths. `pnpm production:check` verifies release automation files, gitignored local secrets, Worker observability/Durable Object config, static security headers, the 350 KB entry bundle budget, and CI/deploy workflow guardrails. `pnpm production:smoke -- https://<production-host>` verifies the live Worker health response, security headers, unauthenticated catalog, and analytics endpoint. These guardrails do not replace real multiplayer QA.
 
 ## Release Runbook
 
@@ -146,6 +148,6 @@ pnpm production:check
 2. Confirm required GitHub Secrets exist in the repository or `production` environment.
 3. Confirm required Cloudflare Worker secrets exist for the deployed Worker.
 4. Run the manual `Deploy Cloudflare` workflow from GitHub Actions.
-5. Open the Cloudflare custom domain and `/health`.
+5. Run `pnpm production:smoke -- https://<production-host>` and open `/health`.
 6. Launch the Discord Activity from a test server and confirm the Activity opens the production host.
 

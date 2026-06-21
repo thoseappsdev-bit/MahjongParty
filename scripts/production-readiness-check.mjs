@@ -26,6 +26,8 @@ check("release automation files exist", () => {
     ".github/workflows/ci.yml",
     ".github/workflows/cloudflare-deploy.yml",
     ".github/workflows/codeql.yml",
+    "scripts/secret-scan.mjs",
+    "scripts/smoke-production.mjs",
     "docs/production-release.md",
     "apps/web/public/_headers",
     "wrangler.jsonc",
@@ -35,7 +37,7 @@ check("release automation files exist", () => {
 });
 
 check("local secret files are gitignored", () => {
-  for (const path of [".env", ".env.local", ".dev.vars", "apps/web/.env"]) {
+  for (const path of [".env", ".env.local", ".dev.vars", "apps/web/.env", "artifacts/smoke.png", "supabase/.temp/cli-latest"]) {
     const result = spawnSync("git", ["check-ignore", "-q", path], { stdio: "ignore" });
     assert(result.status === 0, `${path} is not ignored by git`);
   }
@@ -75,14 +77,14 @@ check("web entry bundle stays below the first-load budget", () => {
 
 check("package scripts include production gates", () => {
   const pkg = readJson("package.json");
-  for (const script of ["test", "build", "check:cloudflare", "deploy:cloudflare", "production:check"]) {
+  for (const script of ["test", "build", "check:cloudflare", "deploy:cloudflare", "security:secrets", "production:check", "production:smoke"]) {
     assert(pkg.scripts?.[script], `package script missing: ${script}`);
   }
 });
 
-check("CI runs tests, build, Cloudflare dry-run, and production checks", () => {
+check("CI runs secret scan, tests, build, Cloudflare dry-run, and production checks", () => {
   const ci = read(".github/workflows/ci.yml");
-  for (const command of ["pnpm test", "pnpm build", "pnpm check:cloudflare", "pnpm production:check"]) {
+  for (const command of ["pnpm security:secrets", "pnpm test", "pnpm build", "pnpm check:cloudflare", "pnpm production:check"]) {
     assert(ci.includes(command), `CI does not run ${command}`);
   }
 });
@@ -93,6 +95,23 @@ check("manual deploy uses Cloudflare and public client secrets only", () => {
     assert(deploy.includes(`secrets.${secret}`), `deploy workflow missing ${secret}`);
   }
   assert(!deploy.includes("SUPABASE_SERVICE_ROLE_KEY"), "service role key should stay in Cloudflare Worker secrets, not GitHub build env");
+});
+
+check("production smoke and secret scripts are wired", () => {
+  const smoke = read("scripts/smoke-production.mjs");
+  for (const token of ["/health", "/api/economy/catalog", "/api/analytics/events", "frame-ancestors https://discord.com https://*.discord.com"]) {
+    assert(smoke.includes(token), `production smoke script missing ${token}`);
+  }
+
+  const secretScan = read("scripts/secret-scan.mjs");
+  for (const token of ["git", "ls-files", "SUPABASE_SERVICE_ROLE_KEY", "CLOUDFLARE_API_TOKEN", "artifacts\\/", "supabase\\/\\.temp\\/"]) {
+    assert(secretScan.includes(token), `secret scan script missing ${token}`);
+  }
+
+  const releaseDoc = read("docs/production-release.md");
+  for (const token of ["pnpm security:secrets", "pnpm production:smoke", "live Worker health response"]) {
+    assert(releaseDoc.includes(token), `production release docs missing ${token}`);
+  }
 });
 
 check("GitHub security scanning is configured", () => {
@@ -118,13 +137,14 @@ check("GitHub security scanning is configured", () => {
     assert(releaseDoc.includes(token), `production release docs missing ${token}`);
   }
 });
+
 check("repository hygiene templates are present", () => {
   const dependabot = read(".github/dependabot.yml");
   assert(dependabot.includes("package-ecosystem: npm"), "Dependabot does not update npm dependencies");
   assert(dependabot.includes("package-ecosystem: github-actions"), "Dependabot does not update GitHub Actions");
 
   const prTemplate = read(".github/pull_request_template.md");
-  for (const command of ["pnpm test", "pnpm build", "pnpm check:cloudflare", "pnpm production:check"]) {
+  for (const command of ["pnpm security:secrets", "pnpm test", "pnpm build", "pnpm check:cloudflare", "pnpm production:check"]) {
     assert(prTemplate.includes(command), `PR template does not mention ${command}`);
   }
 
