@@ -5,10 +5,22 @@ This checklist covers the GitHub Actions release path for the Cloudflare-hosted 
 ## GitHub Actions
 
 - `CI` runs on every push and pull request.
+- `CodeQL` runs on pushes to `main`, pull requests to `main`, and a weekly schedule.
 - `CI` installs with `pnpm install --frozen-lockfile`, then runs `pnpm test` and `pnpm build`.
 - `Deploy Cloudflare` is manual-only through GitHub Actions `workflow_dispatch`.
 - `Deploy Cloudflare` installs dependencies and runs `pnpm deploy:cloudflare`.
 - The deploy workflow uses the `production` GitHub Environment. Add required reviewers there if production deploys should be gated.
+
+## GitHub Repository Protection
+
+After pushing `main` to GitHub, enable these repository settings before treating the repo as release-ready:
+
+- Protect `main` and require pull requests before merging.
+- Require the `CI` workflow status check before merging.
+- Require the `CodeQL` workflow status check before merging once the first scan has run.
+- Require CODEOWNERS review after replacing the placeholder owner in `.github/CODEOWNERS` with the real GitHub user or organization.
+- Enable Dependabot alerts and Dependabot security updates.
+- Enable secret scanning and push protection if the repository plan supports it.
 
 ## Required GitHub Secrets
 
@@ -130,7 +142,7 @@ pnpm production:check
 
 ## Release Runbook
 
-1. Confirm CI is green on the commit that will be deployed.
+1. Confirm CI and CodeQL are green on the commit that will be deployed.
 2. Confirm required GitHub Secrets exist in the repository or `production` environment.
 3. Confirm required Cloudflare Worker secrets exist for the deployed Worker.
 4. Run the manual `Deploy Cloudflare` workflow from GitHub Actions.

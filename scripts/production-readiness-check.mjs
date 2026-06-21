@@ -25,6 +25,7 @@ check("release automation files exist", () => {
   for (const path of [
     ".github/workflows/ci.yml",
     ".github/workflows/cloudflare-deploy.yml",
+    ".github/workflows/codeql.yml",
     "docs/production-release.md",
     "apps/web/public/_headers",
     "wrangler.jsonc",
@@ -94,6 +95,29 @@ check("manual deploy uses Cloudflare and public client secrets only", () => {
   assert(!deploy.includes("SUPABASE_SERVICE_ROLE_KEY"), "service role key should stay in Cloudflare Worker secrets, not GitHub build env");
 });
 
+check("GitHub security scanning is configured", () => {
+  const codeql = read(".github/workflows/codeql.yml");
+  for (const token of [
+    "github/codeql-action/init@v4",
+    "github/codeql-action/analyze@v4",
+    "security-events: write",
+    "javascript-typescript",
+    "security-and-quality",
+  ]) {
+    assert(codeql.includes(token), `CodeQL workflow missing ${token}`);
+  }
+
+  const releaseDoc = read("docs/production-release.md");
+  assert(!releaseDoc.includes("`r`n"), "release docs contain escaped newline markers");
+  for (const token of [
+    "Protect `main`",
+    "Dependabot alerts",
+    "secret scanning",
+    "CI and CodeQL are green",
+  ]) {
+    assert(releaseDoc.includes(token), `production release docs missing ${token}`);
+  }
+});
 check("repository hygiene templates are present", () => {
   const dependabot = read(".github/dependabot.yml");
   assert(dependabot.includes("package-ecosystem: npm"), "Dependabot does not update npm dependencies");
