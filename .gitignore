@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.turbo/
+.vite/
+.wrangler/
+coverage/
+*.local
+.env
+.env.*
+!.env.example
+!apps/web/.env.example
+.dev.vars
+out.txt
+tmp-*.png
+_tmp_*
+artifacts/
+supabase/.temp/

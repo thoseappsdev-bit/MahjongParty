@@ -1,0 +1,6 @@
+[
+  { "type": "coins", "amount": 200, "weight": 45 },
+  { "type": "coins", "amount": 500, "weight": 25 },
+  { "type": "gems", "amount": 5, "weight": 20 },
+  { "type": "fragment", "amount": 1, "itemId": "tile-old-hk-ivory", "weight": 10 }
+]

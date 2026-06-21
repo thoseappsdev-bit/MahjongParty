@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mahjong-party",
+  "main": "apps/worker/src/index.ts",
+  "compatibility_date": "2026-06-16",
+  "assets": {
+    "directory": "./apps/web/dist",
+    "not_found_handling": "single-page-application"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MAHJONG_ROOM",
+        "class_name": "MahjongRoomObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MahjongRoomObject"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

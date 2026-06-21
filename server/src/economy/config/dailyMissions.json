@@ -1,0 +1,29 @@
+[
+  {
+    "id": "play-hand",
+    "title": "Play 1 hand",
+    "detail": "Finish any practice, friend, or coin hand.",
+    "progress": 0,
+    "target": 1,
+    "rewardCoins": 300,
+    "claimed": false
+  },
+  {
+    "id": "win-with-pong",
+    "title": "Win with Pong",
+    "detail": "Complete a hand that includes at least one Pong.",
+    "progress": 0,
+    "target": 1,
+    "rewardCoins": 900,
+    "claimed": false
+  },
+  {
+    "id": "claim-melds",
+    "title": "Claim 2 melds",
+    "detail": "Use Chi, Pong, or Kong twice across hands.",
+    "progress": 0,
+    "target": 2,
+    "rewardCoins": 500,
+    "claimed": false
+  }
+]

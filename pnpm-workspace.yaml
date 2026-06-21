@@ -1,0 +1,5 @@
+packages:
+  - "game-core"
+  - "packages/*"
+  - "apps/*"
+  - "server"

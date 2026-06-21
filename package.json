@@ -1,0 +1,30 @@
+{
+  "name": "mahjong-party",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "dev": "turbo run dev --parallel",
+    "dev:lan": "turbo run dev:lan --parallel --filter=@mahjong/web --filter=@mahjong/server",
+    "lint": "turbo run lint",
+    "preview:cloudflare": "node scripts/run-with-env.mjs pnpm build && node scripts/run-with-env.mjs wrangler dev",
+    "deploy:cloudflare": "node scripts/run-with-env.mjs pnpm build && node scripts/run-with-env.mjs wrangler deploy",
+    "check:cloudflare": "node scripts/run-with-env.mjs wrangler deploy --dry-run",
+    "sync:cloudflare-secrets": "node scripts/cloudflare-put-supabase-secrets.mjs",
+    "production:check": "node scripts/production-readiness-check.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260616.1",
+    "playwright": "^1.60.0",
+    "turbo": "2.9.18",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8",
+    "wrangler": "^4.100.0"
+  }
+}
+

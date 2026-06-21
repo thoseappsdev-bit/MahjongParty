@@ -1,0 +1,20 @@
+[
+  {
+    "id": "coins-small",
+    "kind": "coin-pack",
+    "title": "Jade Coin Stack",
+    "description": "Convert Gems into Coins for paid tables.",
+    "priceLabel": "50 Gems",
+    "gemCost": 50,
+    "coinGrant": 2000
+  },
+  {
+    "id": "coins-large",
+    "kind": "coin-pack",
+    "title": "Dragon Coin Chest",
+    "description": "A larger one-way Gems to Coins conversion.",
+    "priceLabel": "220 Gems",
+    "gemCost": 220,
+    "coinGrant": 10000
+  }
+]

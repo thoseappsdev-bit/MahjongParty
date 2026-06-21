@@ -1,0 +1,26 @@
+{
+  "name": "@mahjong/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts",
+    "dev:lan": "tsx src/index.ts",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@mahjong/game-core": "workspace:*",
+    "@mahjong/shared-types": "workspace:*",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.20.0",
+    "tsx": "4.22.4",
+    "vitest": "4.1.8"
+  }
+}

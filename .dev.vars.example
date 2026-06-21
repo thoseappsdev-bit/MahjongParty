@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local development.
+# In production, instead set the real secret:
+#   wrangler secret put SUPABASE_JWT_SECRET
+DEV_AUTH_BYPASS=1

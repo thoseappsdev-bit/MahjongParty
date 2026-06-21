@@ -1,0 +1,11 @@
+[
+  {
+    "id": "gems-test-small",
+    "kind": "gem-pack",
+    "title": "Test Gem Pack",
+    "description": "Prototype purchase verification grant.",
+    "priceLabel": "Stub purchase",
+    "gemCost": 0,
+    "coinGrant": 0
+  }
+]

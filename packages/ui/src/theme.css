@@ -1,0 +1,185 @@
+:root {
+  --mp-emerald-deep: #0b3d2e;
+  --mp-emerald-night: #071f19;
+  --mp-jade: #1f8a5b;
+  --mp-jade-soft: #48b077;
+  --mp-gold: #d4af37;
+  --mp-wood: #6b4a2b;
+  --mp-lantern: #ffcf73;
+  --mp-ink: #13201a;
+  --mp-cream: #f5ecd8;
+  --mp-danger: #c0392b;
+  --mp-text: #fff8e7;
+  --mp-muted: #b9c7b8;
+  --mp-border: rgba(245, 236, 216, 0.18);
+  --mp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  color-scheme: dark;
+  font-family: "Inter", "Noto Sans SC", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--mp-emerald-night);
+  color: var(--mp-text);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.mp-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 14px;
+  color: var(--mp-text);
+  font-size: 0.92rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.mp-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.mp-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.mp-button-primary {
+  background: linear-gradient(180deg, #e0bf52, #b58a22);
+  color: #17261d;
+  box-shadow: 0 10px 24px rgba(212, 175, 55, 0.2);
+}
+
+.mp-button-secondary {
+  background: rgba(31, 138, 91, 0.24);
+  border-color: rgba(72, 176, 119, 0.5);
+}
+
+.mp-button-ghost {
+  background: rgba(245, 236, 216, 0.06);
+  border-color: var(--mp-border);
+}
+
+.mp-button-danger {
+  background: rgba(192, 57, 43, 0.18);
+  border-color: rgba(192, 57, 43, 0.7);
+}
+
+.mp-panel,
+.mp-table-card {
+  border: 1px solid var(--mp-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(245, 236, 216, 0.08), rgba(245, 236, 216, 0.035)),
+    rgba(7, 31, 25, 0.74);
+  box-shadow: var(--mp-shadow);
+}
+
+.mp-currency,
+.mp-reward-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--mp-border);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(245, 236, 216, 0.07);
+  color: var(--mp-text);
+  white-space: nowrap;
+}
+
+.mp-currency-coins svg {
+  color: var(--mp-gold);
+}
+
+.mp-currency-gems svg {
+  color: #88f4d4;
+}
+
+.mp-currency-label {
+  color: var(--mp-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mp-table-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.mp-table-card h3 {
+  margin: 0;
+  font-family: "Noto Serif SC", Georgia, serif;
+  font-size: 1.12rem;
+}
+
+.mp-table-card p {
+  margin: 5px 0 0;
+  color: var(--mp-muted);
+  font-size: 0.88rem;
+}
+
+.mp-table-card-body {
+  color: var(--mp-text);
+}
+
+.mp-reward-chip {
+  border-radius: 8px;
+  align-items: flex-start;
+}
+
+.mp-reward-chip svg {
+  color: var(--mp-lantern);
+  margin-top: 2px;
+}
+
+.mp-reward-chip strong,
+.mp-reward-chip small {
+  display: block;
+}
+
+.mp-reward-chip small {
+  color: var(--mp-muted);
+  margin-top: 2px;
+}
+
+.mp-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 36px));
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: rgba(19, 32, 26, 0.96);
+  box-shadow: var(--mp-shadow);
+  color: var(--mp-text);
+}
+
+.mp-toast svg {
+  color: var(--mp-lantern);
+}

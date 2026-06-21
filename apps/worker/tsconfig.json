@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "../..",
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src", "../../server/src/lan-table-service.ts"]
+}

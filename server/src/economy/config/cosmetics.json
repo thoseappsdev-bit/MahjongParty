@@ -1,0 +1,12 @@
+[
+  {
+    "id": "tile-old-hk-ivory",
+    "kind": "cosmetic",
+    "title": "Old Hong Kong Ivory Tiles",
+    "description": "Warm ivory face with jade backs.",
+    "priceLabel": "120 Gems",
+    "gemCost": 120,
+    "coinGrant": 0,
+    "rarity": "rare"
+  }
+]
