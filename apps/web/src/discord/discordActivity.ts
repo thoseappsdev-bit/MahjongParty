@@ -139,7 +139,7 @@ export async function authenticateDiscordActivity(apiBase: string): Promise<Disc
     const tokenResponse = await fetch(apiUrl(apiBase, "/api/discord/token"), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, clientId }),
     });
     if (!tokenResponse.ok) {
       throw new Error(await responseError(tokenResponse));

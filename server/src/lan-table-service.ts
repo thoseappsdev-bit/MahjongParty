@@ -27,6 +27,8 @@ import { bankrollReserveFor } from "@mahjong/shared-types";
 export interface LanTableServiceOptions {
   now: () => number;
   code: () => string;
+  /** Server-only entropy source. The seed is never exposed in client snapshots. */
+  seed?: () => string;
 }
 
 export interface CreateLanRoomInput {
@@ -133,7 +135,7 @@ export function createLanTableService(options: LanTableServiceOptions) {
   function startMatch(roomCode: string, input: StartLanMatchInput): LanRoomSnapshot {
     const room = requireRoom(rooms, roomCode);
     assertHost(room, input.userId, "Only the host can start this LAN room");
-    room.match = createMatchForRoom(room, options.now());
+    room.match = createMatchForRoom(room, options.seed?.() ?? secureMatchSeed());
     touch(room, options.now());
     appendAudit(room, options.now(), "start", input.userId, seatForUser(room, input.userId), `${input.userId} started the hand.`);
     rooms.set(roomCode, cloneRoomState(room));
@@ -143,7 +145,7 @@ export function createLanTableService(options: LanTableServiceOptions) {
   function rematch(roomCode: string, input: StartLanMatchInput): LanRoomSnapshot {
     const room = requireRoom(rooms, roomCode);
     assertHost(room, input.userId, "Only the host can start a rematch");
-    room.match = createMatchForRoom(room, options.now());
+    room.match = createMatchForRoom(room, options.seed?.() ?? secureMatchSeed());
     touch(room, options.now());
     appendAudit(room, options.now(), "rematch", input.userId, seatForUser(room, input.userId), `${input.userId} started a rematch.`);
     rooms.set(roomCode, cloneRoomState(room));
@@ -259,6 +261,7 @@ function createRoomState(
   displayName: string,
   avatar: string,
 ): LanRoomState {
+  validateTableConfig(config);
   return {
     roomCode,
     hostUserId: userId,
@@ -270,8 +273,8 @@ function createRoomState(
   };
 }
 
-function createMatchForRoom(room: LanRoomState, now: number): MatchState {
-  const match = createMatchState(`lan-${room.roomCode}-${now}`, { mode: room.config.mode });
+function createMatchForRoom(room: LanRoomState, seed: string): MatchState {
+  const match = createMatchState(seed, { mode: room.config.mode });
   match.players = match.players.map((player, index) => ({
     ...player,
     name: room.seats[index]?.displayName ?? player.name,
@@ -459,6 +462,36 @@ export function coinSettlementDeltasFor(
   }
 
   return deltas.some((delta) => delta.amount !== 0) ? deltas : null;
+}
+
+const supportedCoinBuyIns = new Set([2_000]);
+
+export function validateTableConfig(config: TableConfig): void {
+  if (config.mode !== "1-fan" && config.mode !== "3-fan") {
+    throw new Error("Unsupported game mode");
+  }
+  if (config.privacy !== "public" && config.privacy !== "private") {
+    throw new Error("Unsupported table privacy");
+  }
+  if (!Number.isInteger(config.timerSeconds) || config.timerSeconds < 12 || config.timerSeconds > 40) {
+    throw new Error("Timer must be between 12 and 40 seconds");
+  }
+  if (config.maxPlayers !== 4) {
+    throw new Error("Old Hong Kong tables currently require 4 seats");
+  }
+  if (config.tableType === "friendly") {
+    if (config.buyIn !== 0) {
+      throw new Error("Friendly tables cannot have a buy-in");
+    }
+    return;
+  }
+  if (config.tableType !== "coin" || !supportedCoinBuyIns.has(config.buyIn)) {
+    throw new Error("Coin tables require a supported buy-in");
+  }
+}
+
+function secureMatchSeed(): string {
+  return crypto.randomUUID();
 }
 
 function settlementSettingsFor(config?: Pick<TableConfig, "tableType" | "buyIn">): SettlementSettings {

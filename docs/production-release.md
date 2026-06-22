@@ -2,6 +2,8 @@
 
 This checklist covers the GitHub Actions release path for the Cloudflare-hosted Mahjong Party prototype. Keep local setup details in `.env` and `.dev.vars`; production values belong in GitHub Secrets, Cloudflare Worker secrets, Supabase, Discord, or provider dashboards.
 
+Operational recovery, database backups, and rollback procedures are in [Recovery And Operations](./recovery-and-operations.md).
+
 ## GitHub Actions
 
 - `CI` runs on every push and pull request.
@@ -49,6 +51,8 @@ SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_JWT_SECRET
 ```
 
+`SUPABASE_URL` is the project URL. `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` are server-only secrets and must never be copied into a `VITE_` variable or GitHub Actions log.
+
 Required for Discord OAuth token exchange:
 
 ```text
@@ -69,6 +73,30 @@ CHATGPT_API_KEY
 FAL_KEY
 FAL_AI_API_KEY
 ```
+
+## Disabled Monetization Paths
+
+Real-money purchase verification and rewarded-ad fulfillment are intentionally disabled for this release. Do not advertise either feature as functional and do not add a secret or environment flag to bypass that restriction.
+
+Before enabling purchases, implement provider receipt verification, idempotent fulfillment, refunds/reversals, fraud controls, and sandbox-to-production tests. Before enabling rewarded ads, integrate an ad provider with server-verifiable completion callbacks, replay protection, rate limits, and abuse monitoring. Client assertions alone must never grant Coins or Gems.
+
+## Supabase Migration Gate
+
+The linked Supabase project must be at migration parity before the corresponding Worker build is deployed. From the repository root:
+
+```powershell
+npx supabase login
+npx supabase link --project-ref <project-ref>
+npx supabase migration list --linked
+npx supabase db push --linked --dry-run
+npx supabase db push --linked
+npx supabase migration list --linked
+npx supabase db push --linked --dry-run
+```
+
+Before `db push`, confirm the linked project reference, review every pending migration, and create a verified backup as described in the [recovery runbook](./recovery-and-operations.md). After the push, every local migration must appear remotely and the final dry run must report nothing pending. Only one operator should push migrations at a time.
+
+Do not use `supabase migration repair` as a normal deploy command. It changes migration history without applying or reverting SQL. If remote schema was modified manually, stop and reconcile the schema and migration history deliberately.
 
 ## Cloudflare Custom Domain
 
@@ -143,12 +171,24 @@ pnpm production:smoke -- https://<production-host>
 
 `pnpm security:secrets` scans tracked files for committed secrets and forbidden local/generated paths. `pnpm production:check` verifies release automation files, gitignored local secrets, Worker observability/Durable Object config, static security headers, the 350 KB entry bundle budget, and CI/deploy workflow guardrails. `pnpm production:smoke -- https://<production-host>` verifies the live Worker health response, security headers, unauthenticated catalog, and analytics endpoint. These guardrails do not replace real multiplayer QA.
 
+## Backup And Rollback Gate
+
+- Confirm a current Supabase managed backup or create schema, data, and role dumps outside the repository.
+- Record the current Cloudflare Worker version and commit SHA before deployment.
+- Confirm the previous Worker version is compatible with the post-migration Supabase schema and current Durable Object state.
+- Remember that `wrangler rollback` does not revert database migrations, secrets, bindings, DNS, or Durable Object storage.
+- Keep the production host, Supabase project reference, backup location/checksums, and rollback version in the release record without including secret values.
+
 ## Release Runbook
 
 1. Confirm CI and CodeQL are green on the commit that will be deployed.
 2. Confirm required GitHub Secrets exist in the repository or `production` environment.
 3. Confirm required Cloudflare Worker secrets exist for the deployed Worker.
-4. Run the manual `Deploy Cloudflare` workflow from GitHub Actions. The workflow reruns the production gates before deploy and smoke-tests `MAHJONG_PRODUCTION_URL` after deploy.
-5. Run `pnpm production:smoke -- https://<production-host>` and open `/health`.
-6. Launch the Discord Activity from a test server and confirm the Activity opens the production host.
-
+4. Confirm Supabase backup status and create the off-site pre-release dumps required by the recovery runbook.
+5. Link to the intended Supabase project, review the migration dry run, push pending migrations, and prove migration parity.
+6. Record the current Cloudflare deployment version and verify that the intended rollback target remains schema-compatible.
+7. Run the manual `Deploy Cloudflare` workflow from GitHub Actions. The workflow reruns the production gates before deploy and smoke-tests `MAHJONG_PRODUCTION_URL` after deploy.
+8. Run `pnpm production:smoke -- https://<production-host>` and open `/health`.
+9. Test one authenticated room, reconnect, wallet read, and economy mutation against production without using real-money purchase or rewarded-ad paths.
+10. Launch the Discord Activity from a test server and confirm the Activity opens the production host and completes OAuth.
+11. Record release evidence and monitor Worker/Supabase logs before declaring the release complete.

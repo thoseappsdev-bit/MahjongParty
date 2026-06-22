@@ -23,6 +23,15 @@ export function startServer(
     economyService?: EconomyService;
   } = {},
 ) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_UNSAFE_NODE_LAN_SERVER_IN_PRODUCTION !== "1"
+  ) {
+    throw new Error(
+      "The Node LAN server is disabled in production. Use the authenticated Cloudflare Worker, or set ALLOW_UNSAFE_NODE_LAN_SERVER_IN_PRODUCTION=1 only for controlled private testing.",
+    );
+  }
+
   const defaultAssetService = createAssetService();
   const assetService = { ...defaultAssetService, ...options.assetService };
   const economyService = options.economyService ?? createConfiguredEconomyService(createEconomyService());

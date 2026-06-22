@@ -1,4 +1,4 @@
-﻿import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Button, CurrencyPill, Toast } from "@mahjong/ui";
 import { t } from "@mahjong/i18n";
 import {
@@ -25,7 +25,7 @@ import type {
   TableConfig,
   Wallet,
 } from "@mahjong/shared-types";
-import { bankrollReserveFor } from "@mahjong/shared-types";
+
 import {
   catalog,
   dailyMissions,
@@ -41,7 +41,7 @@ import {
   wallet as initialWallet,
 } from "./mock/mockData";
 import { createPracticeRoom, createRoom } from "./mock/mockGameRoom";
-import { joinTableWithWallet } from "./mock/mockEconomy";
+
 import { matchStateToResult, matchStateToView } from "./mock/matchEngineAdapter";
 import { resultFromPractice } from "./mock/practiceResult";
 import { loadStoredLocale, saveStoredLocale } from "./localeStorage";
@@ -49,7 +49,7 @@ import { loadStoredWallet, saveStoredWallet } from "./walletStorage";
 import { loadOrCreatePlayerId } from "./playerIdentityStorage";
 import {
   buyCatalogItem as buyCatalogItemFromBackend,
-  buyIn as buyInFromBackend,
+
   claimDailyReward as claimDailyRewardFromBackend,
   claimMission as claimMissionFromBackend,
   getCatalog as getBackendCatalog,
@@ -355,7 +355,7 @@ export function App() {
       .then(setWallet)
       .catch(() => undefined);
     getBackendCatalog(lanApiBase)
-      .then((items) => setShopCatalog([...items.coinPacks, ...items.cosmetics, ...items.gemPacks]))
+      .then((items) => setShopCatalog([...items.coinPacks, ...items.cosmetics]))
       .catch(() => undefined);
     getDailyMissionsFromBackend(lanApiBase, playerId)
       .then(setMissions)
@@ -488,40 +488,36 @@ export function App() {
     showToast(`Invite link copied for room ${room.roomCode}.`);
   }
 
-  async function handleCreateRoom(config: TableConfig) {
+  function handleCreateRoom(config: TableConfig) {
     rememberLanSession(null);
     setLanEventLog(null);
     setLanAuditMessages(null);
-    const entry = await payTableEntry(config);
-    if (!entry.ok) {
-      showToast(entry.message);
+    if (config.tableType === "coin") {
+      showToast("Coin tables require an authoritative online room.");
       return;
     }
 
-    setWallet(entry.wallet);
     const nextRoom = createRoom(config);
     setRoom(nextRoom);
     setTableConfig(config);
     setRoute("waiting");
-    showToast(entry.wallet === wallet ? `Room ${nextRoom.roomCode} created.` : entry.message);
+    showToast(`Room ${nextRoom.roomCode} created.`);
   }
 
-  async function handleJoinTable(config: TableConfig) {
+  function handleJoinTable(config: TableConfig) {
     rememberLanSession(null);
     setLanEventLog(null);
     setLanAuditMessages(null);
-    const entry = await payTableEntry(config);
-    if (!entry.ok) {
-      showToast(entry.message);
+    if (config.tableType === "coin") {
+      showToast("Coin tables require an authoritative online room.");
       return;
     }
 
-    setWallet(entry.wallet);
     const nextRoom = createRoom(config);
     setRoom(nextRoom);
     setTableConfig(config);
     setRoute("waiting");
-    showToast(entry.message);
+    showToast(`Joined ${nextRoom.roomCode}.`);
   }
 
   function handleStartMatch() {
@@ -761,23 +757,6 @@ export function App() {
     return url.toString();
   }
 
-  async function payTableEntry(config: TableConfig): Promise<{ ok: boolean; wallet: Wallet; message: string }> {
-    if (config.tableType !== "coin" || config.buyIn <= 0) {
-      return joinTableWithWallet(wallet, config);
-    }
-
-    try {
-      const reserve = bankrollReserveFor(config);
-      const response = await buyInFromBackend(lanApiBase, activeProfile.userId, reserve);
-      return { ok: true, wallet: response.wallet, message: `${reserve.toLocaleString()} Coins bankroll reserved.` };
-    } catch (error) {
-      return {
-        ok: false,
-        wallet,
-        message: error instanceof Error ? error.message : "Table entry payment failed.",
-      };
-    }
-  }
 
   function handleBuy(itemId: string) {
     const item = shopCatalog.find((entry) => entry.id === itemId);

@@ -128,9 +128,36 @@ check("manual deploy uses Cloudflare and public client secrets only", () => {
   assert(!deploy.includes("SUPABASE_SERVICE_ROLE_KEY"), "service role key should stay in Cloudflare Worker secrets, not GitHub build env");
 });
 
+check("production economy and paid-table surfaces fail closed", () => {
+  const worker = read("apps/worker/src/index.ts");
+  for (const token of [
+    'economyMode: economyModeFor(env)',
+    'Persistent economy is not configured',
+    'Mission progress is recorded by authoritative matches',
+    'Rewarded ads are not enabled',
+    'Store purchase verification is not enabled',
+    '{ ...catalog, gemPacks: [] }',
+  ]) {
+    assert(worker.includes(token), `Worker production guard missing: ${token}`);
+  }
+  assert(!worker.includes('economyService.verifyPurchase('), "Worker still grants purchases without provider verification");
+
+  const app = read("apps/web/src/App.tsx");
+  assert(app.includes("Coin tables require an authoritative online room"), "web app does not block local paid-table flow");
+  assert(!app.includes("buyInFromBackend"), "web app still imports direct buy-in mutation");
+  assert(!app.includes("payTableEntry"), "web app still exposes local paid-table reservation helper");
+});
 check("production smoke and secret scripts are wired", () => {
   const smoke = read("scripts/smoke-production.mjs");
-  for (const token of ["/health", "/api/economy/catalog", "/api/analytics/events", "frame-ancestors https://discord.com https://*.discord.com"]) {
+  for (const token of [
+    "/health",
+    "/api/economy/catalog",
+    "/api/analytics/events",
+    "frame-ancestors https://discord.com https://*.discord.com",
+    "MAHJONG_EXPECTED_ECONOMY_MODE",
+    "health.economyMode",
+    "catalog.gemPacks.length === 0",
+  ]) {
     assert(smoke.includes(token), `production smoke script missing ${token}`);
   }
 

@@ -12,6 +12,51 @@ const config = {
 };
 
 describe("LAN table service", () => {
+  it("rejects invalid or unsupported table configurations before room creation", () => {
+    const service = createLanTableService({ now: () => 10, code: () => "COIN88", seed: () => "server-secret-seed" });
+
+    expect(() =>
+      service.createRoom({
+        config: { ...config, tableType: "coin", buyIn: 0 },
+        userId: "u_lina",
+        displayName: "Lina",
+        avatar: "L",
+      }),
+    ).toThrow("Coin tables require a supported buy-in");
+    expect(() =>
+      service.createRoom({
+        config: { ...config, tableType: "friendly", buyIn: 2_000 },
+        userId: "u_lina",
+        displayName: "Lina",
+        avatar: "L",
+      }),
+    ).toThrow("Friendly tables cannot have a buy-in");
+    expect(() =>
+      service.createRoom({
+        config: { ...config, timerSeconds: 0 },
+        userId: "u_lina",
+        displayName: "Lina",
+        avatar: "L",
+      }),
+    ).toThrow("Timer must be between 12 and 40 seconds");
+  });
+
+  it("uses a server-only random seed source instead of room code and timestamps", () => {
+    const seeds = ["cryptographic-seed-one", "cryptographic-seed-two"];
+    const service = createLanTableService({
+      now: () => 10,
+      code: () => "JADE42",
+      seed: () => seeds.shift() ?? "unexpected-seed",
+    });
+    service.createRoom({ config, userId: "u_lina", displayName: "Lina", avatar: "L" });
+
+    service.startMatch("JADE42", { userId: "u_lina" });
+    expect(service.exportRoom("JADE42")?.match?.seed).toBe("cryptographic-seed-one");
+
+    service.rematch("JADE42", { userId: "u_lina" });
+    expect(service.exportRoom("JADE42")?.match?.seed).toBe("cryptographic-seed-two");
+  });
+
   it("creates a room with a host and bot-filled seats", () => {
     const service = createLanTableService({ now: () => 10, code: () => "JADE42" });
 

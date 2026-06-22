@@ -1,9 +1,10 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Panel } from "@mahjong/ui";
 import { t } from "@mahjong/i18n";
 import type { LocaleCode, MatchIntent, MatchView } from "@mahjong/shared-types";
 import { BoardCanvas } from "./BoardCanvas";
 import { PixiMatchBoard } from "./PixiMatchBoard";
+import { tileFaceAssetPath } from "./pixi/pixiBoardAssets";
 
 export function MatchBoard({
   canDiscard,
@@ -172,15 +173,12 @@ function MeldList({ melds }: { melds: string[] }) {
 function Tile({ code, compact = false }: { code: string; compact?: boolean }) {
   return (
     <span className={`tile has-art ${compact ? "compact" : ""}`.trim()}>
-      <img className="tile-art" src={tileAssetPath(code)} alt="" aria-hidden="true" draggable={false} />
+      <img className="tile-art" src={tileFaceAssetPath(code)} alt="" aria-hidden="true" draggable={false} />
       <span className="tile-label">{displayTile(code)}</span>
     </span>
   );
 }
 
-function tileAssetPath(code: string): string {
-  return `/assets/tiles/old-hk/${code.toLowerCase()}.svg`;
-}
 
 function displayTile(code: string): string {
   return code.toUpperCase();

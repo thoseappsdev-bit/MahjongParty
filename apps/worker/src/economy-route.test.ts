@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
+import { signHs256 } from "../../../server/src/auth";
 import worker, { type Env } from "./index";
 import { refundReservedBankroll, reserveBankrollForSeat, reservedSettlementDeltasFor, settleCoinSnapshotIfNeeded } from "./index";
 
 describe("Cloudflare economy routes", () => {
+  it("reports whether production economy persistence is configured", async () => {
+    const locked = await worker.fetch(new Request("https://mahjong.example.com/health"), lockedEnv());
+    await expect(locked.json()).resolves.toMatchObject({ economyMode: "locked" });
+
+    const development = await worker.fetch(new Request("https://mahjong.example.com/health"), fakeEnv());
+    await expect(development.json()).resolves.toMatchObject({ economyMode: "memory-dev" });
+
+    const persisted = await worker.fetch(
+      new Request("https://mahjong.example.com/health"),
+      {
+        ...lockedEnv(),
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      },
+    );
+    await expect(persisted.json()).resolves.toMatchObject({ economyMode: "supabase" });
+  });
+
   it("serves the economy catalog from the deployed Worker API", async () => {
     const response = await worker.fetch(new Request("https://mahjong.example.com/api/economy/catalog"), fakeEnv());
 
@@ -11,6 +30,64 @@ describe("Cloudflare economy routes", () => {
     expect(body.gemPacks?.length).toBeGreaterThan(0);
     expect(body.coinPacks?.length).toBeGreaterThan(0);
     expect(body.cosmetics?.length).toBeGreaterThan(0);
+  });
+
+  it("does not advertise unfinished real-money gem packs in production", async () => {
+    const response = await worker.fetch(
+      new Request("https://mahjong.example.com/api/economy/catalog"),
+      {
+        ...lockedEnv(),
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { gemPacks?: unknown[]; coinPacks?: unknown[]; cosmetics?: unknown[] };
+    expect(body.gemPacks).toEqual([]);
+    expect(body.coinPacks?.length).toBeGreaterThan(0);
+    expect(body.cosmetics?.length).toBeGreaterThan(0);
+  });
+  it("fails closed instead of using an in-memory economy outside explicit development mode", async () => {
+    const secret = "production-test-secret";
+    const token = await signHs256(
+      { sub: "11111111-1111-4111-8111-111111111111", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 60 },
+      secret,
+    );
+    const response = await worker.fetch(
+      new Request("https://mahjong.example.com/api/economy/wallet", {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      { ...lockedEnv(), SUPABASE_JWT_SECRET: secret },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Persistent economy is not configured",
+    });
+  });
+
+  it("does not expose unverified reward, purchase, mission-progress, or direct buy-in mutations", async () => {
+    const env = fakeEnv();
+    const userId = "11111111-1111-4111-8111-111111111111";
+    const routes = [
+      ["/api/economy/ad/reward", {}, 501],
+      ["/api/economy/purchase/verify", { packId: "gems-test-small" }, 501],
+      ["/api/economy/daily/missions/progress", { event: { type: "play" } }, 403],
+      ["/api/economy/table/buy-in", { amount: 2_000 }, 404],
+    ] as const;
+
+    for (const [route, body, expectedStatus] of routes) {
+      const response = await worker.fetch(
+        new Request(`https://mahjong.example.com${route}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-user-id": userId },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+      expect(response.status, route).toBe(expectedStatus);
+    }
   });
 
   it("settles a completed human coin table once", async () => {
@@ -144,7 +221,7 @@ describe("Cloudflare economy routes", () => {
     expect(reservations).toEqual({});
   });
 
-  it("rejects negative buy-in amounts instead of turning them into coin grants", async () => {
+  it("rejects direct buy-in mutations because the room authority owns bankroll reservations", async () => {
     const response = await worker.fetch(
       new Request("https://mahjong.example.com/api/economy/table/buy-in", {
         method: "POST",
@@ -157,11 +234,11 @@ describe("Cloudflare economy routes", () => {
       fakeEnv(),
     );
 
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ error: "amount must be a positive integer" });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: "Not found" });
   });
 
-  it("exposes daily mission list, progress, and claim routes", async () => {
+  it("exposes daily mission list without a client-controlled progress route", async () => {
     const env = fakeEnv();
     const userId = "11111111-1111-4111-8111-111111111111";
 
@@ -173,11 +250,7 @@ describe("Cloudflare economy routes", () => {
       }),
       env,
     );
-    expect(progressResponse.status).toBe(200);
-    const progressBody = (await progressResponse.json()) as { missions: Array<{ id: string; progress: number; target: number; claimed: boolean }> };
-    expect(progressBody.missions).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: "play-hand", progress: 1, target: 1, claimed: false })]),
-    );
+    expect(progressResponse.status).toBe(403);
 
     const listResponse = await worker.fetch(
       new Request("https://mahjong.example.com/api/economy/daily/missions", { headers: { "x-user-id": userId } }),
@@ -185,21 +258,7 @@ describe("Cloudflare economy routes", () => {
     );
     expect(listResponse.status).toBe(200);
     const listBody = (await listResponse.json()) as { missions: Array<{ id: string; progress: number }> };
-    expect(listBody.missions).toEqual(expect.arrayContaining([expect.objectContaining({ id: "play-hand", progress: 1 })]));
-
-    const claimResponse = await worker.fetch(
-      new Request("https://mahjong.example.com/api/economy/daily/missions/claim", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-user-id": userId },
-        body: JSON.stringify({ missionId: "play-hand" }),
-      }),
-      env,
-    );
-    expect(claimResponse.status).toBe(200);
-    expect(await claimResponse.json()).toMatchObject({
-      wallet: { coins: 300, gems: 0 },
-      mission: expect.objectContaining({ id: "play-hand", claimed: true }),
-    });
+    expect(listBody.missions).toEqual(expect.arrayContaining([expect.objectContaining({ id: "play-hand", progress: 0 })]));
   });
 });
 
@@ -262,6 +321,19 @@ function coinSnapshot() {
       policyCopy: "Virtual coins have no cash value.",
     },
     updatedAt: 123,
+  };
+}
+
+function lockedEnv(): Env {
+  return {
+    MAHJONG_ROOM: {
+      idFromName() {
+        throw new Error("room durable object should not be used by economy routes");
+      },
+      get() {
+        throw new Error("room durable object should not be used by economy routes");
+      },
+    } as unknown as DurableObjectNamespace,
   };
 }
 

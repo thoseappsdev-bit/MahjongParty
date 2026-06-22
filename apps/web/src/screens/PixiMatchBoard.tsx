@@ -1,6 +1,6 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MatchIntent, MatchView } from "@mahjong/shared-types";
-import { pixiTableSkinPath, pixiTileBackPath, pixiTileFrontPath, collectPixiBoardAssetPaths } from "./pixi/pixiBoardAssets";
+import { pixiTableSkinPath, pixiTileBackPath, collectPixiBoardAssetPaths, tileFaceAssetPath } from "./pixi/pixiBoardAssets";
 import { buildPixiBoardLayout, type PixiBoardLayout, type PixiBoardTile } from "./pixi/pixiBoardLayout";
 import { discardViewportClip, nextDiscardScrollY } from "./pixi/pixiDiscardScroll";
 import { buildPixiBannerMetrics, claimBannerCenterY } from "./pixi/pixiBannerLayout";
@@ -108,7 +108,8 @@ export function PixiMatchBoard({
           assetLoadId: 0,
         };
         setRendererReady(true);
-      } catch {
+      } catch (error) {
+        console.warn("[pixi] renderer initialization failed", error);
         onRendererErrorRef.current();
       }
     }
@@ -289,7 +290,10 @@ function renderWhenAssetsReady(
         playEvents(runtime, layout, events, reduceMotion);
       }
     })
-    .catch(() => onRendererError());
+    .catch((error) => {
+      console.warn("[pixi] asset preload failed", { error, missingAssets });
+      onRendererError();
+    });
 }
 
 function runtimeRefCurrent(runtime: PixiRuntime): boolean {
@@ -337,7 +341,7 @@ function drawBoard(
       }
     }
     for (const tile of seat.discardTiles) {
-      discardLayer.addChild(tileSprite(runtime, tile, tileAssetPath(tile.code ?? "")));
+      discardLayer.addChild(tileSprite(runtime, tile, tileFaceAssetPath(tile.code ?? "")));
     }
   }
 
@@ -359,7 +363,7 @@ function drawBoard(
     runtime.layer.addChild(badgeNode(runtime, badge.x, badge.y, badge.width, badge.height, displayMeld(badge.text)));
   }
   for (const tile of layout.localHand) {
-    const sprite = tileSprite(runtime, tile, tileAssetPath(tile.code ?? ""), canDiscard ? 1 : 0.72);
+    const sprite = tileSprite(runtime, tile, tileFaceAssetPath(tile.code ?? ""), canDiscard ? 1 : 0.72);
     if (tile.code && canDiscard) {
       sprite.eventMode = "static";
       sprite.cursor = "pointer";
@@ -526,9 +530,6 @@ function textNode(runtime: PixiRuntime, label: string, x: number, y: number, siz
   return text;
 }
 
-function tileAssetPath(code: string): string {
-  return code ? `/assets/tiles/old-hk/${code.toLowerCase()}.svg` : pixiTileFrontPath;
-}
 
 function displayMeld(meld: string): string {
   return meld

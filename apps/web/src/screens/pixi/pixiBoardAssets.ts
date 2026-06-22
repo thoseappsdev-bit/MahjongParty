@@ -1,4 +1,4 @@
-﻿import type { MatchView } from "@mahjong/shared-types";
+import type { MatchView } from "@mahjong/shared-types";
 
 export const pixiTableSkinPath = "/assets/table-skins/old-hk-openai-board.png";
 export const pixiTileBackPath = "/assets/tiles/tile-back.svg";
@@ -31,5 +31,15 @@ function addTile(paths: Set<string>, tile: string) {
     return;
   }
 
-  paths.add(`/assets/tiles/old-hk/${tile.toLowerCase()}.svg`);
+  paths.add(tileFaceAssetPath(tile));
+}
+
+export function tileFaceAssetPath(tile: string): string {
+  const normalized = tile.trim().toLowerCase();
+  if (!normalized) {
+    return pixiTileFrontPath;
+  }
+  const suited = /^([1-9])([mps])$/.exec(normalized);
+  const filename = suited ? `${suited[2]}${suited[1]}` : normalized;
+  return `/assets/tiles/old-hk/${filename}.svg`;
 }

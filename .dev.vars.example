@@ -1,4 +1,24 @@
-# Copy to .dev.vars for local development.
-# In production, instead set the real secret:
-#   wrangler secret put SUPABASE_JWT_SECRET
+# Copy to .dev.vars for local Worker development. Never commit .dev.vars.
+
+# Fast local mode. This trusts local development identity headers and must
+# never be configured on the deployed Worker.
 DEV_AUTH_BYPASS=1
+
+# For production-parity local testing, remove DEV_AUTH_BYPASS above and
+# uncomment every required server-side value below.
+# SUPABASE_URL=https://<project-ref>.supabase.co
+# SUPABASE_SERVICE_ROLE_KEY=
+# SUPABASE_JWT_SECRET=
+# DISCORD_CLIENT_SECRET=
+
+# Optional server-side Discord Activity Instance API validation.
+# DISCORD_BOT_TOKEN=
+
+# Production values belong in Cloudflare Worker secrets, for example:
+#   npx wrangler secret put SUPABASE_URL
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   npx wrangler secret put SUPABASE_JWT_SECRET
+#   npx wrangler secret put DISCORD_CLIENT_SECRET
+
+# Purchase verification and rewarded-ad fulfillment are intentionally
+# disabled; no local or production variable enables either feature.

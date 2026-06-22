@@ -1,4 +1,4 @@
-﻿import {
+import {
   coinSettlementDeltasFor,
   createLanTableService,
   type LanRoomState,
@@ -28,6 +28,7 @@ export interface Env {
   SUPABASE_JWT_SECRET?: string;
   /** "1" allows x-user-id / body.userId identity. ONLY for local dev / tests. Ignored when a JWT secret is set. */
   DEV_AUTH_BYPASS?: string;
+  DISCORD_CLIENT_SECRET?: string;
 }
 
 interface AuthEnv {
@@ -66,10 +67,14 @@ export default {
         service: "mahjong-party-cloudflare",
         roomRuntime: "durable-object",
         authMode: authModeFor(env),
+        economyMode: economyModeFor(env),
       });
     }
     if (request.method === "POST" && url.pathname === "/api/analytics/events") {
       return handleAnalyticsEvent(request);
+    }
+    if (request.method === "POST" && url.pathname === "/api/discord/token") {
+      return handleDiscordTokenExchange(request, env);
     }
 
     const segments = url.pathname.split("/").filter(Boolean);
@@ -268,7 +273,7 @@ export class MahjongRoomObject {
 
       return json({ error: "Not found" }, 404);
     } catch (error) {
-      if (error instanceof AuthError) {
+      if (error instanceof AuthError || error instanceof EconomyConfigurationError) {
         return json({ error: error.message }, error.status);
       }
       return json({ error: error instanceof Error ? error.message : "Request failed" }, 400);
@@ -562,6 +567,44 @@ function roomFetch(env: Env, roomCode: string, request: Request): Promise<Respon
   return env.MAHJONG_ROOM.get(id).fetch(request);
 }
 
+class EconomyConfigurationError extends Error {
+  readonly status = 503;
+
+  constructor() {
+    super("Persistent economy is not configured");
+    this.name = "EconomyConfigurationError";
+  }
+}
+
+const unavailableEconomyService: EconomyService = {
+  getWallet: unavailableEconomy,
+  getLedger: unavailableEconomy,
+  getMatchHistory: unavailableEconomy,
+  catalog: () => createEconomyService().catalog(),
+  mutate: unavailableEconomy,
+  settle: unavailableEconomy,
+  buy: unavailableEconomy,
+  claimDaily: unavailableEconomy,
+  rewardAd: unavailableEconomy,
+  spin: unavailableEconomy,
+  getDailyMissions: unavailableEconomy,
+  recordMissionProgress: unavailableEconomy,
+  claimMission: unavailableEconomy,
+  verifyPurchase: unavailableEconomy,
+};
+
+function unavailableEconomy(): never {
+  throw new EconomyConfigurationError();
+}
+
+function economyModeFor(env: Env): "supabase" | "memory-dev" | "locked" {
+  const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
+  if (supabaseUrl && env.SUPABASE_SERVICE_ROLE_KEY) {
+    return "supabase";
+  }
+  return env.DEV_AUTH_BYPASS === "1" ? "memory-dev" : "locked";
+}
+
 function economyServiceFor(env: Env): EconomyService {
   const supabaseUrl = env.SUPABASE_URL ?? env.VITE_SUPABASE_URL;
   if (supabaseUrl && env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -571,18 +614,22 @@ function economyServiceFor(env: Env): EconomyService {
     });
   }
 
-  fallbackEconomyService ??= createEconomyService();
-  return fallbackEconomyService;
+  if (env.DEV_AUTH_BYPASS === "1") {
+    fallbackEconomyService ??= createEconomyService();
+    return fallbackEconomyService;
+  }
+  return unavailableEconomyService;
 }
 
 async function handleEconomyRequest(request: Request, segments: string[], env: Env): Promise<Response> {
-  const economyService = economyServiceFor(env);
   try {
     // The shop catalog is static config and safe to read unauthenticated.
     if (request.method === "GET" && segments[2] === "catalog") {
-      return json(await economyService.catalog());
+      const catalog = await createEconomyService().catalog();
+      return json(env.DEV_AUTH_BYPASS === "1" ? catalog : { ...catalog, gemPacks: [] });
     }
 
+    const economyService = economyServiceFor(env);
     const body = request.method === "GET" ? {} : await readJson<Record<string, unknown>>(request);
     // Server-derived identity. Settlement is never exposed here â€” it is performed
     // internally by the room Durable Object after an authoritative hand completes.
@@ -597,7 +644,7 @@ async function handleEconomyRequest(request: Request, segments: string[], env: E
     }
 
     if (request.method === "POST" && segments[2] === "daily" && segments[3] === "missions" && segments[4] === "progress") {
-      return json({ missions: await economyService.recordMissionProgress(userId, requireMissionProgressEvent(body.event)) });
+      return json({ error: "Mission progress is recorded by authoritative matches" }, 403);
     }
 
     if (request.method === "POST" && segments[2] === "daily" && segments[3] === "missions" && segments[4] === "claim") {
@@ -609,7 +656,7 @@ async function handleEconomyRequest(request: Request, segments: string[], env: E
     }
 
     if (request.method === "POST" && segments[2] === "ad" && segments[3] === "reward") {
-      return json(await economyService.rewardAd(userId));
+      return json({ error: "Rewarded ads are not enabled" }, 501);
     }
 
     if (request.method === "POST" && segments[2] === "spin") {
@@ -621,37 +668,16 @@ async function handleEconomyRequest(request: Request, segments: string[], env: E
     }
 
     if (request.method === "POST" && segments[2] === "purchase" && segments[3] === "verify") {
-      return json(await economyService.verifyPurchase(userId, typeof body.packId === "string" ? body.packId : undefined));
-    }
-
-    if (request.method === "POST" && segments[2] === "table" && segments[3] === "buy-in") {
-      return json(await economyService.mutate(userId, "coins", -requirePositiveInteger(body.amount, "amount"), "table-buyin"));
+      return json({ error: "Store purchase verification is not enabled" }, 501);
     }
 
     return json({ error: "Not found" }, 404);
   } catch (error) {
-    if (error instanceof AuthError) {
+    if (error instanceof AuthError || error instanceof EconomyConfigurationError) {
       return json({ error: error.message }, error.status);
     }
     return json({ error: error instanceof Error ? error.message : "Request failed" }, 400);
   }
-}
-
-function requireMissionProgressEvent(value: unknown): { type: "play" } | { type: "win-with-pong" } | { type: "claim-melds"; count?: number } {
-  if (!value || typeof value !== "object") {
-    throw new Error("event is required");
-  }
-  const event = value as { type?: unknown; count?: unknown };
-  if (event.type === "play" || event.type === "win-with-pong") {
-    return { type: event.type };
-  }
-  if (event.type === "claim-melds") {
-    if (event.count !== undefined && !Number.isInteger(event.count)) {
-      throw new Error("event.count must be an integer");
-    }
-    return event.count === undefined ? { type: "claim-melds" } : { type: "claim-melds", count: event.count as number };
-  }
-  throw new Error("event.type is not supported");
 }
 
 function requireString(value: unknown, field: string): string {
@@ -661,20 +687,47 @@ function requireString(value: unknown, field: string): string {
   return value.trim();
 }
 
-function requireInteger(value: unknown, field: string): number {
-  if (!Number.isInteger(value)) {
-    throw new Error(`${field} must be an integer`);
+
+
+async function handleDiscordTokenExchange(request: Request, env: Pick<Env, "DISCORD_CLIENT_SECRET">): Promise<Response> {
+  if (!env.DISCORD_CLIENT_SECRET) {
+    return json({ error: "Discord OAuth is not configured" }, 503);
   }
-  return value as number;
+
+  let body: { code?: unknown; clientId?: unknown };
+  try {
+    body = await readJson<{ code?: unknown; clientId?: unknown }>(request);
+  } catch {
+    return json({ error: "Invalid Discord token request" }, 400);
+  }
+  if (typeof body.code !== "string" || !body.code.trim() || body.code.length > 2048) {
+    return json({ error: "Discord authorization code is required" }, 400);
+  }
+  if (typeof body.clientId !== "string" || !/^\d{10,30}$/.test(body.clientId)) {
+    return json({ error: "Discord client id is required" }, 400);
+  }
+
+  const response = await fetch("https://discord.com/api/oauth2/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: body.clientId,
+      client_secret: env.DISCORD_CLIENT_SECRET,
+      grant_type: "authorization_code",
+      code: body.code,
+    }),
+  });
+  if (!response.ok) {
+    return json({ error: `Discord token exchange failed with HTTP ${response.status}` }, 502);
+  }
+
+  const token = (await response.json()) as { access_token?: unknown };
+  if (typeof token.access_token !== "string" || !token.access_token) {
+    return json({ error: "Discord token exchange returned no access token" }, 502);
+  }
+  return json({ access_token: token.access_token });
 }
 
-function requirePositiveInteger(value: unknown, field: string): number {
-  const parsed = requireInteger(value, field);
-  if (parsed <= 0) {
-    throw new Error(`${field} must be a positive integer`);
-  }
-  return parsed;
-}
 async function handleAnalyticsEvent(request: Request): Promise<Response> {
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > 16_384) {

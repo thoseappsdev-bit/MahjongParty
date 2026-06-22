@@ -1,4 +1,4 @@
-﻿import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { signHs256, type Jwk } from "../../../server/src/auth";
 import worker, { type Env } from "./index";
 
@@ -18,9 +18,18 @@ function env(overrides: Partial<Env> = {}): Env {
   };
 }
 
-async function bearer(sub: string): Promise<string> {
+async function bearer(sub: string, issuer?: string): Promise<string> {
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const jwt = await signHs256({ sub, aud: "authenticated", role: "authenticated", exp: nowSeconds + 3600 }, SECRET);
+  const jwt = await signHs256(
+    {
+      sub,
+      aud: "authenticated",
+      role: "authenticated",
+      exp: nowSeconds + 3600,
+      ...(issuer ? { iss: issuer } : {}),
+    },
+    SECRET,
+  );
   return `Bearer ${jwt}`;
 }
 
@@ -90,15 +99,76 @@ describe("worker authentication", () => {
     expect(await response.json()).toEqual({ error: "Invalid analytics event" });
   });
 
+  it("exchanges a Discord Activity authorization code through the Worker", async () => {
+    const discordFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://discord.com/api/oauth2/token");
+      expect(init?.method).toBe("POST");
+      const form = new URLSearchParams(String(init?.body));
+      expect(form.get("client_id")).toBe("123456789012345678");
+      expect(form.get("client_secret")).toBe("discord-client-secret");
+      expect(form.get("code")).toBe("authorization-code");
+      return new Response(JSON.stringify({ access_token: "discord-access-token" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", discordFetch);
+
+    const response = await worker.fetch(
+      new Request("https://x/api/discord/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: "authorization-code", clientId: "123456789012345678" }),
+      }),
+      env({ DISCORD_CLIENT_SECRET: "discord-client-secret" }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ access_token: "discord-access-token" });
+    expect(discordFetch).toHaveBeenCalledOnce();
+  });
+
+  it("fails clearly when Discord token exchange is not configured", async () => {
+    const response = await worker.fetch(
+      new Request("https://x/api/discord/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: "authorization-code", clientId: "123456789012345678" }),
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: "Discord OAuth is not configured" });
+  });
+
   it("returns 401 for a protected route when neither JWT nor dev bypass is configured (fail closed)", async () => {
     const response = await worker.fetch(new Request("https://x/api/economy/wallet"), env());
     expect(response.status).toBe(401);
   });
 
   it("derives identity from a valid Supabase bearer token", async () => {
+    const baseUrl = "https://example.supabase.co";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        expect(String(input)).toContain(`${baseUrl}/rest/v1/wallets`);
+        return new Response(JSON.stringify([{ coins: 0, gems: 0 }]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+
     const response = await worker.fetch(
-      new Request("https://x/api/economy/wallet", { headers: { authorization: await bearer("user-abc") } }),
-      env({ SUPABASE_JWT_SECRET: SECRET }),
+      new Request("https://x/api/economy/wallet", {
+        headers: { authorization: await bearer("user-abc", `${baseUrl}/auth/v1`) },
+      }),
+      env({
+        SUPABASE_JWT_SECRET: SECRET,
+        SUPABASE_URL: baseUrl,
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      }),
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as { wallet: { coins: number; gems: number } };
@@ -117,17 +187,30 @@ describe("worker authentication", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
-        expect(String(input)).toBe("https://example.supabase.co/auth/v1/.well-known/jwks.json");
-        return new Response(JSON.stringify({ keys: [jwk] }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        const url = String(input);
+        if (url === "https://example.supabase.co/auth/v1/.well-known/jwks.json") {
+          return new Response(JSON.stringify({ keys: [jwk] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (url.includes("https://example.supabase.co/rest/v1/wallets")) {
+          return new Response(JSON.stringify([{ coins: 0, gems: 0 }]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
       }),
     );
 
     const response = await worker.fetch(
       new Request("https://x/api/economy/wallet", { headers: { authorization: `Bearer ${token}` } }),
-      env({ SUPABASE_JWT_SECRET: SECRET, SUPABASE_URL: "https://example.supabase.co" }),
+      env({
+        SUPABASE_JWT_SECRET: SECRET,
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      }),
     );
 
     expect(response.status).toBe(200);

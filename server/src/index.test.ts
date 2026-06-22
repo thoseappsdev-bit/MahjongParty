@@ -1,5 +1,5 @@
 import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { startServer } from "./index";
 
 let server: ReturnType<typeof startServer> | null = null;
@@ -8,10 +8,30 @@ describe("server stub", () => {
   afterEach(() => {
     server?.close();
     server = null;
+    vi.unstubAllEnvs();
   });
 
   it("exports a local HTTP server starter", () => {
     expect(typeof startServer).toBe("function");
+  });
+
+  it("refuses to start the unsafe LAN server in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_UNSAFE_NODE_LAN_SERVER_IN_PRODUCTION", "");
+
+    expect(() => startServer(0, "127.0.0.1")).toThrow(
+      "The Node LAN server is disabled in production",
+    );
+  });
+
+  it("allows an explicit unsafe production override for controlled private testing", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_UNSAFE_NODE_LAN_SERVER_IN_PRODUCTION", "1");
+
+    server = startServer(0, "127.0.0.1");
+    await new Promise<void>((resolve) => server?.once("listening", resolve));
+
+    expect(server.listening).toBe(true);
   });
 
   it("serves the LAN room flow over HTTP", async () => {
