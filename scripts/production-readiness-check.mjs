@@ -131,9 +131,12 @@ check("manual deploy uses Cloudflare and public client secrets only", () => {
 check("production economy and paid-table surfaces fail closed", () => {
   const worker = read("apps/worker/src/index.ts");
   for (const token of [
+    'rateLimitResponseFor(request, env)',
+    'Too many requests',
     'economyMode: economyModeFor(env)',
     'Persistent economy is not configured',
     'Mission progress is recorded by authoritative matches',
+    'recordMissionProgressForSnapshotIfNeeded',
     'Rewarded ads are not enabled',
     'Store purchase verification is not enabled',
     '{ ...catalog, gemPacks: [] }',

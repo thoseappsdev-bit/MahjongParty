@@ -11,6 +11,7 @@ Keep these outside the repository and verify access before a release or incident
 - Discord Developer Portal access for the Activity application. Client secrets and bot tokens cannot be recovered from this repository.
 - Access to the production domain and Cloudflare DNS zone, if a custom domain is used.
 - An encrypted off-site destination for logical database dumps. A dump stored only on the developer laptop or in the repository is not a backup.
+- Docker Desktop or local Postgres client tools (`pg_dump` / `psql`) for logical dump and restore drills on Windows.
 - A named incident operator who can pause releases, communicate downtime, and reconcile wallets and active rooms after recovery.
 
 The repository does not currently provide a maintenance-mode switch, automated cross-region database replica, automated restore drill, or backup of Durable Object storage. Plan downtime before a database restore.
@@ -93,7 +94,7 @@ Supabase managed-backup availability and retention depend on the project plan. F
 Before a database migration or economy-affecting Worker release:
 
 1. Confirm the latest managed backup in **Supabase Dashboard > Database > Backups**, if the plan provides one.
-2. Create encrypted logical dumps to a path outside the repository:
+2. Create encrypted logical dumps to a path outside the repository. On Windows, the Supabase CLI may require Docker Desktop for `pg_dump`; if Docker is unavailable, install local Postgres client tools or use Supabase managed backups before proceeding:
 
    ```powershell
    npx supabase db dump --linked --file C:\secure-backups\mahjong-schema-<utc-timestamp>.sql

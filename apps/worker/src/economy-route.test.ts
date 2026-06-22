@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { signHs256 } from "../../../server/src/auth";
 import worker, { type Env } from "./index";
-import { refundReservedBankroll, reserveBankrollForSeat, reservedSettlementDeltasFor, settleCoinSnapshotIfNeeded } from "./index";
+import {
+  missionProgressEventsFor,
+  rateLimitResponseFor,
+  recordMissionProgressForSnapshotIfNeeded,
+  refundReservedBankroll,
+  reserveBankrollForSeat,
+  reservedSettlementDeltasFor,
+  settleCoinSnapshotIfNeeded,
+} from "./index";
 
 describe("Cloudflare economy routes", () => {
   it("reports whether production economy persistence is configured", async () => {
@@ -219,6 +227,79 @@ describe("Cloudflare economy routes", () => {
       },
     ]);
     expect(reservations).toEqual({});
+  });
+
+  it("rate limits high-risk unauthenticated endpoints per client", async () => {
+    const request = () =>
+      new Request("https://mahjong.example.com/api/discord/token", {
+        method: "POST",
+        headers: { "cf-connecting-ip": "203.0.113.42" },
+      });
+
+    for (let index = 0; index < 8; index += 1) {
+      expect(rateLimitResponseFor(request(), {})).toBeNull();
+    }
+
+    const limited = rateLimitResponseFor(request(), {});
+    expect(limited?.status).toBe(429);
+    expect(await limited?.json()).toMatchObject({ error: "Too many requests" });
+    expect(limited?.headers.get("retry-after")).toBeTruthy();
+  });
+
+  it("derives daily mission progress from completed authoritative match snapshots", async () => {
+    const snapshot = {
+      ...coinSnapshot(),
+      match: {
+        players: [
+          { melds: ["pung p5"] },
+          { melds: ["chow m1 m2 m3", "kong dr"] },
+          { melds: [] },
+          { melds: [] },
+        ],
+      },
+    };
+
+    expect([...missionProgressEventsFor(snapshot as never)]).toEqual([
+      [
+        "11111111-1111-4111-8111-111111111111",
+        [{ type: "play" }, { type: "claim-melds", count: 1 }, { type: "win-with-pong" }],
+      ],
+      [
+        "22222222-2222-4222-8222-222222222222",
+        [{ type: "play" }, { type: "claim-melds", count: 2 }],
+      ],
+      ["33333333-3333-4333-8333-333333333333", [{ type: "play" }]],
+      ["44444444-4444-4444-8444-444444444444", [{ type: "play" }]],
+    ]);
+  });
+
+  it("records completed match missions once", async () => {
+    const calls: Array<{ userId: string; event: unknown }> = [];
+    const recorded = new Set<string>();
+    const service = {
+      async recordMissionProgress(userId: string, event: unknown) {
+        calls.push({ userId, event });
+        return [];
+      },
+    };
+    const snapshot = {
+      ...coinSnapshot(),
+      match: {
+        players: [
+          { melds: ["pung p5"] },
+          { melds: [] },
+          { melds: [] },
+          { melds: [] },
+        ],
+      },
+    };
+
+    await recordMissionProgressForSnapshotIfNeeded(snapshot as never, service, recorded);
+    await recordMissionProgressForSnapshotIfNeeded(snapshot as never, service, recorded);
+
+    expect(calls).toHaveLength(6);
+    expect(calls.filter((call) => call.event && typeof call.event === "object" && "type" in call.event && call.event.type === "play")).toHaveLength(4);
+    expect(recorded.has("COIN88-123")).toBe(true);
   });
 
   it("rejects direct buy-in mutations because the room authority owns bankroll reservations", async () => {

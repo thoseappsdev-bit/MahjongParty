@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 const env = loadEnvFile(resolve(process.cwd(), ".env"));
 const requiredSecrets = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
-const optionalSecrets = ["SUPABASE_JWT_SECRET"];
+const optionalSecrets = ["SUPABASE_JWT_SECRET", "DISCORD_CLIENT_SECRET"];
 
 for (const name of requiredSecrets) {
   const value = env[name] ?? process.env[name];
@@ -26,7 +26,7 @@ for (const name of optionalSecrets) {
   await putSecret(name, value);
 }
 
-console.log("Cloudflare Supabase secrets synced.");
+console.log("Cloudflare server secrets synced.");
 
 function loadEnvFile(path) {
   let text = "";

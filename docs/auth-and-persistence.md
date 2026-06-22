@@ -85,6 +85,12 @@ pnpm sync:cloudflare-secrets
 ```
 With it set, JWT is enforced and the dev bypass is ignored.
 
+## Direct table access lockdown
+
+Browser clients do not read or write Supabase economy tables directly in production. The exposed public tables keep RLS enabled, but direct `authenticated` table policies are removed so Supabase anonymous users cannot query player/economy data through the Data API. All production data access goes through the Cloudflare Worker, which verifies the Supabase JWT and then uses server-only service-role RPCs.
+
+This is why anonymous sign-in can remain a low-friction identity source for the Worker without leaving direct table policies open to anonymous users.
+
 ## Client login (Supabase anonymous auth)
 
 The web client authenticates with Supabase so every API call carries a verified bearer token:
@@ -105,7 +111,7 @@ If disabled, sign-in fails, the token stays `null`, and JWT-enforced routes retu
 
 Anonymous users get a real `aud:"authenticated"` token with a stable `sub`, which the Worker
 verifies and uses as the user id — so accounts/economy work end-to-end with zero signup friction.
-A later email/OAuth upgrade can call `linkIdentity` without changing this wiring.
+A later email/OAuth upgrade can call `linkIdentity` without changing this wiring. Direct table access remains locked until a non-anonymous account UI deliberately needs browser-side Supabase queries.
 
 Tests: `apps/web/src/auth/supabaseAuth.test.ts` (existing session / anon sign-in / sign-in error /
 token refresh).

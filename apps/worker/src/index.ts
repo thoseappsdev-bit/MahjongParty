@@ -3,7 +3,7 @@ import {
   createLanTableService,
   type LanRoomState,
 } from "../../../server/src/lan-table-service";
-import { createEconomyService, type EconomyService } from "../../../server/src/economy-service";
+import { createEconomyService, type EconomyService, type MissionProgressEvent } from "../../../server/src/economy-service";
 import { createSupabaseRestEconomyService } from "../../../server/src/economy-supabase-rest";
 import { AuthError, parseBearer, verifySupabaseJwt } from "../../../server/src/auth";
 import { applyDisconnectGrace, parseSocketMessage } from "../../../server/src/room-realtime";
@@ -13,6 +13,19 @@ import { bankrollReserveFor, type LanRoomSnapshot, type Seat, type TableConfig }
 
 /** Grace window before a disconnected human seat is converted to a bot. */
 const DISCONNECT_GRACE_MS = 30_000;
+
+interface RateLimitRule {
+  name: string;
+  limit: number;
+  windowMs: number;
+}
+
+interface RateLimitBucket {
+  count: number;
+  resetAt: number;
+}
+
+const rateLimitBuckets = new Map<string, RateLimitBucket>();
 
 interface SocketAttachment {
   userId: string;
@@ -29,6 +42,7 @@ export interface Env {
   /** "1" allows x-user-id / body.userId identity. ONLY for local dev / tests. Ignored when a JWT secret is set. */
   DEV_AUTH_BYPASS?: string;
   DISCORD_CLIENT_SECRET?: string;
+  RATE_LIMIT_DISABLED?: string;
 }
 
 interface AuthEnv {
@@ -70,6 +84,12 @@ export default {
         economyMode: economyModeFor(env),
       });
     }
+
+    const limited = rateLimitResponseFor(request, env);
+    if (limited) {
+      return limited;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/analytics/events") {
       return handleAnalyticsEvent(request);
     }
@@ -115,6 +135,7 @@ export class MahjongRoomObject {
   private readonly storageState: DurableObjectState;
   private readonly authEnv: AuthEnv;
   private settledMatches = new Set<string>();
+  private missionProgressMatches = new Set<string>();
   private bankrollReservations: BankrollReservations = {};
   private disconnectMap: DisconnectMap = {};
 
@@ -139,6 +160,10 @@ export class MahjongRoomObject {
       const settled = await state.storage.get<string[]>("settled");
       if (settled) {
         this.settledMatches = new Set(settled);
+      }
+      const missionProgress = await state.storage.get<string[]>("missionProgress");
+      if (missionProgress) {
+        this.missionProgressMatches = new Set(missionProgress);
       }
       const reservations = await state.storage.get<BankrollReservations>("bankrollReservations");
       if (reservations) {
@@ -255,6 +280,7 @@ export class MahjongRoomObject {
         body.userId = await authenticate(request, this.authEnv, body);
         const snapshot = this.service.submitAction(this.roomCode, body as never);
         await settleCoinSnapshotIfNeeded(snapshot, this.economyService, this.settledMatches, this.bankrollReservations);
+        await recordMissionProgressForSnapshotIfNeeded(snapshot, this.economyService, this.missionProgressMatches);
         await this.persist();
         this.broadcast();
         return json(snapshot);
@@ -265,7 +291,8 @@ export class MahjongRoomObject {
         const seat = Number(url.searchParams.get("seat") ?? 0);
         const snapshot = this.service.getRoom(this.roomCode, seat === 1 || seat === 2 || seat === 3 ? seat : 0, userId);
         const settled = await settleCoinSnapshotIfNeeded(snapshot, this.economyService, this.settledMatches, this.bankrollReservations);
-        if (settled) {
+        const missionsRecorded = await recordMissionProgressForSnapshotIfNeeded(snapshot, this.economyService, this.missionProgressMatches);
+        if (settled || missionsRecorded) {
           await this.persist();
         }
         return json(snapshot);
@@ -296,6 +323,7 @@ export class MahjongRoomObject {
       await this.storageState.storage.put({
         room: snapshot,
         settled: [...this.settledMatches],
+        missionProgress: [...this.missionProgressMatches],
         bankrollReservations: this.bankrollReservations,
         disconnect: this.disconnectMap,
       });
@@ -353,6 +381,7 @@ export class MahjongRoomObject {
           intent: frame.intent as never,
         });
         await settleCoinSnapshotIfNeeded(snapshot, this.economyService, this.settledMatches, this.bankrollReservations);
+        await recordMissionProgressForSnapshotIfNeeded(snapshot, this.economyService, this.missionProgressMatches);
       } else if (frame.type === "start") {
         this.service.startMatch(this.roomCode, { userId: attachment.userId });
       } else if (frame.type === "rematch") {
@@ -391,6 +420,11 @@ export class MahjongRoomObject {
     const result = applyDisconnectGrace(this.service, this.roomCode, this.disconnectMap, Date.now(), DISCONNECT_GRACE_MS);
     this.disconnectMap = result.map;
     await this.persist();
+    if (result.snapshot) {
+      await settleCoinSnapshotIfNeeded(result.snapshot, this.economyService, this.settledMatches, this.bankrollReservations);
+      await recordMissionProgressForSnapshotIfNeeded(result.snapshot, this.economyService, this.missionProgressMatches);
+      await this.persist();
+    }
     if (result.bottedUserIds.length > 0) {
       this.broadcast();
     }
@@ -444,6 +478,68 @@ export async function settleCoinSnapshotIfNeeded(
     }
   }
   return true;
+}
+
+
+export async function recordMissionProgressForSnapshotIfNeeded(
+  snapshot: LanRoomSnapshot,
+  economyService: Pick<EconomyService, "recordMissionProgress">,
+  recordedMatches: Set<string>,
+): Promise<boolean> {
+  if (snapshot.phase !== "complete" || !snapshot.result) {
+    return false;
+  }
+
+  const matchId = missionProgressMatchId(snapshot);
+  if (recordedMatches.has(matchId)) {
+    return false;
+  }
+
+  const events = missionProgressEventsFor(snapshot);
+  for (const [userId, userEvents] of events) {
+    for (const event of userEvents) {
+      await economyService.recordMissionProgress(userId, event);
+    }
+  }
+  recordedMatches.add(matchId);
+  return events.size > 0;
+}
+
+export function missionProgressEventsFor(snapshot: LanRoomSnapshot): Map<string, MissionProgressEvent[]> {
+  const events = new Map<string, MissionProgressEvent[]>();
+  if (snapshot.phase !== "complete" || !snapshot.result) {
+    return events;
+  }
+
+  for (const seat of snapshot.seats) {
+    if (seat.isBot || !seat.userId || !isUuid(seat.userId)) {
+      continue;
+    }
+    const player = snapshot.match?.players[seat.seat];
+    const userEvents: MissionProgressEvent[] = [{ type: "play" }];
+    const meldCount = player?.melds.length ?? 0;
+    if (meldCount > 0) {
+      userEvents.push({ type: "claim-melds", count: meldCount });
+    }
+    if (snapshot.result.totalFan > 0 && snapshot.result.winnerSeat === seat.seat && player?.melds.some(isPongLikeMeld)) {
+      userEvents.push({ type: "win-with-pong" });
+    }
+    events.set(seat.userId, userEvents);
+  }
+
+  return events;
+}
+
+function missionProgressMatchId(snapshot: LanRoomSnapshot): string {
+  return snapshot.roomCode + "-" + snapshot.updatedAt;
+}
+
+function isPongLikeMeld(meld: string): boolean {
+  return meld.startsWith("pung ") || meld.startsWith("kong ");
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export interface BankrollReservations {
@@ -621,6 +717,93 @@ function economyServiceFor(env: Env): EconomyService {
   return unavailableEconomyService;
 }
 
+
+export function rateLimitResponseFor(request: Request, env: Pick<Env, "RATE_LIMIT_DISABLED">): Response | null {
+  if (env.RATE_LIMIT_DISABLED === "1") {
+    return null;
+  }
+
+  const url = new URL(request.url);
+  const rule = rateLimitRuleFor(request.method, url.pathname);
+  if (!rule) {
+    return null;
+  }
+
+  const now = Date.now();
+  pruneRateLimitBuckets(now);
+  const identity = rateLimitIdentityFor(request);
+  const key = rule.name + ":" + identity;
+  const bucket = rateLimitBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + rule.windowMs });
+    return null;
+  }
+
+  if (bucket.count >= rule.limit) {
+    const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    return json(
+      { error: "Too many requests" },
+      429,
+      {
+        "retry-after": String(retryAfter),
+        "x-ratelimit-limit": String(rule.limit),
+        "x-ratelimit-remaining": "0",
+      },
+    );
+  }
+
+  bucket.count += 1;
+  return null;
+}
+
+function rateLimitRuleFor(method: string, pathname: string): RateLimitRule | null {
+  if (!pathname.startsWith("/api/") || method === "OPTIONS" || pathname === "/api/health") {
+    return null;
+  }
+  if (method === "POST" && pathname === "/api/analytics/events") {
+    return { name: "analytics", limit: 30, windowMs: 60_000 };
+  }
+  if (method === "POST" && pathname === "/api/discord/token") {
+    return { name: "discord-token", limit: 8, windowMs: 60_000 };
+  }
+  if (method === "POST" && pathname === "/api/rooms") {
+    return { name: "room-create", limit: 20, windowMs: 60_000 };
+  }
+  if (method === "POST" && pathname.startsWith("/api/rooms/")) {
+    return { name: "room-mutation", limit: 120, windowMs: 60_000 };
+  }
+  if (method === "POST" && pathname.startsWith("/api/economy/")) {
+    return { name: "economy-mutation", limit: 40, windowMs: 60_000 };
+  }
+  if (method === "GET" && pathname.startsWith("/api/economy/")) {
+    return { name: "economy-read", limit: 240, windowMs: 60_000 };
+  }
+  return { name: "api", limit: 300, windowMs: 60_000 };
+}
+
+function rateLimitIdentityFor(request: Request): string {
+  const auth = parseBearer(request.headers.get("authorization"));
+  if (auth) {
+    return "bearer:" + auth.slice(-24);
+  }
+  return (
+    request.headers.get("cf-connecting-ip") ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    new URL(request.url).hostname
+  );
+}
+
+function pruneRateLimitBuckets(now: number): void {
+  if (rateLimitBuckets.size < 1000) {
+    return;
+  }
+  for (const [key, bucket] of rateLimitBuckets) {
+    if (bucket.resetAt <= now) {
+      rateLimitBuckets.delete(key);
+    }
+  }
+}
+
 async function handleEconomyRequest(request: Request, segments: string[], env: Env): Promise<Response> {
   try {
     // The shop catalog is static config and safe to read unauthenticated.
@@ -795,7 +978,7 @@ async function readJson<T = Record<string, unknown>>(request: Request): Promise<
   return request.json<T>();
 }
 
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
   return new Response(body === null ? null : JSON.stringify(body), {
     status,
     headers: {
@@ -803,6 +986,7 @@ function json(body: unknown, status = 200): Response {
       "access-control-allow-methods": "GET,POST,OPTIONS",
       "access-control-allow-headers": "content-type,authorization,x-user-id",
       "content-type": "application/json",
+      ...extraHeaders,
     },
   });
 }

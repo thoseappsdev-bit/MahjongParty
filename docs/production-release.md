@@ -41,7 +41,7 @@ Do not put real secret values in workflow files or docs. Use only GitHub Secret 
 
 ## Required Cloudflare Worker Secrets
 
-Configure server-only values in Cloudflare before or immediately after the first production deploy. Use the Cloudflare dashboard or run `wrangler secret put NAME` from a trusted local shell.
+Configure server-only values in Cloudflare before or immediately after the first production deploy. Use the Cloudflare dashboard, run `wrangler secret put NAME` from a trusted local shell, or run `pnpm sync:cloudflare-secrets` to sync the supported server secrets from local `.env`.
 
 Required for authenticated production economy and room routes:
 
@@ -51,7 +51,7 @@ SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_JWT_SECRET
 ```
 
-`SUPABASE_URL` is the project URL. `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` are server-only secrets and must never be copied into a `VITE_` variable or GitHub Actions log.
+`SUPABASE_URL` is the project URL. `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, and `DISCORD_CLIENT_SECRET` are server-only secrets and must never be copied into a `VITE_` variable or GitHub Actions log.
 
 Required for Discord OAuth token exchange:
 
