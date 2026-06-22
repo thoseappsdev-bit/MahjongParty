@@ -9,4 +9,13 @@ describe("production table flow boundaries", () => {
     expect(source).not.toContain("payTableEntry");
     expect(source).toContain("Coin tables require an authoritative online room");
   });
+
+  it("waits for verified auth before loading private economy data", () => {
+    const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('useState(catalog.filter((item) => item.kind !== "gem-pack"))');
+    expect(source).toContain("if (!authProfile) {");
+    expect(source).toContain("getBackendWallet(lanApiBase, authProfile.userId)");
+    expect(source).toContain("getDailyMissionsFromBackend(lanApiBase, authProfile.userId)");
+  });
 });

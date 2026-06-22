@@ -144,7 +144,7 @@ export function App() {
   const [dailyClaimed, setDailyClaimed] = useState(false);
   const [dailyBonusClaims, setDailyBonusClaims] = useState(0);
   const [dailySpinUsed, setDailySpinUsed] = useState(false);
-  const [shopCatalog, setShopCatalog] = useState(catalog);
+  const [shopCatalog, setShopCatalog] = useState(catalog.filter((item) => item.kind !== "gem-pack"));
   const [toast, setToast] = useState<string | null>(null);
   const [lanApiBase] = useState(() => defaultLanApiBase());
   const [lanSession, setLanSession] = useState<LanSession | null>(null);
@@ -351,16 +351,23 @@ export function App() {
   }, [lanApiBase]);
 
   useEffect(() => {
-    getBackendWallet(lanApiBase, playerId)
-      .then(setWallet)
-      .catch(() => undefined);
     getBackendCatalog(lanApiBase)
       .then((items) => setShopCatalog([...items.coinPacks, ...items.cosmetics]))
       .catch(() => undefined);
-    getDailyMissionsFromBackend(lanApiBase, playerId)
+  }, [lanApiBase]);
+
+  useEffect(() => {
+    if (!authProfile) {
+      return;
+    }
+
+    getBackendWallet(lanApiBase, authProfile.userId)
+      .then(setWallet)
+      .catch(() => undefined);
+    getDailyMissionsFromBackend(lanApiBase, authProfile.userId)
       .then(setMissions)
       .catch(() => undefined);
-  }, [lanApiBase, playerId]);
+  }, [authProfile, lanApiBase]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
