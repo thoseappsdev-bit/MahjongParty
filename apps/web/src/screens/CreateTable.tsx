@@ -18,9 +18,13 @@ export function CreateTable({
 }) {
   function update(next: Partial<TableConfig>) {
     const merged = { ...config, ...next };
+    const mode = merged.tableType === "coin" && merged.mode === "riichi" ? "3-fan" : merged.mode;
+    const tableType = mode === "riichi" ? "friendly" : merged.tableType;
     onChange({
       ...merged,
-      buyIn: merged.tableType === "coin" ? 2_000 : 0,
+      mode,
+      tableType,
+      buyIn: tableType === "coin" ? 2_000 : 0,
     });
   }
 
@@ -43,6 +47,7 @@ export function CreateTable({
           options={[
             ["3-fan", "Old Hong Kong 3 Fan"],
             ["1-fan", "Old Hong Kong 1 Fan"],
+            ["riichi", "Riichi Beta"],
           ]}
           onChange={(mode) => update({ mode: mode as GameMode })}
         />

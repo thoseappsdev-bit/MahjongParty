@@ -47,6 +47,16 @@ export const publicTables: PublicTable[] = [
     host: "Mei",
   },
   {
+    id: "riichi-103",
+    title: "Riichi Beta Room",
+    mode: "riichi",
+    tableType: "friendly",
+    seatsTaken: 1,
+    maxPlayers: 4,
+    buyIn: 0,
+    host: "Ren",
+  },
+  {
     id: "coin-226",
     title: "Jade Coin Table",
     mode: "3-fan",
@@ -268,7 +278,3 @@ export const dailyMissions: DailyMission[] = [
     claimed: false,
   },
 ];
-
-
-
-

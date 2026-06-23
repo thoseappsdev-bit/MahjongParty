@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMatchState } from "@mahjong/game-core";
-import { coinSettlementDeltasFor, createLanTableService, matchResultFor } from "./lan-table-service";
+import { coinSettlementDeltasFor, createLanTableService, matchResultFor, validateTableConfig } from "./lan-table-service";
 
 const config = {
   mode: "3-fan" as const,
@@ -14,6 +14,11 @@ const config = {
 describe("LAN table service", () => {
   it("rejects invalid or unsupported table configurations before room creation", () => {
     const service = createLanTableService({ now: () => 10, code: () => "COIN88", seed: () => "server-secret-seed" });
+
+    expect(() => validateTableConfig({ ...config, mode: "riichi" })).not.toThrow();
+    expect(() =>
+      validateTableConfig({ ...config, mode: "riichi", tableType: "coin", buyIn: 2_000 }),
+    ).toThrow("Riichi Beta is friendly-room only for now");
 
     expect(() =>
       service.createRoom({
@@ -243,7 +248,7 @@ describe("LAN table service", () => {
       winnerName: "Wall Draw",
       totalFan: 0,
       deltas: [0, 0, 0, 0],
-      policyCopy: "The wall was exhausted. No winner this hand.",
+      policyCopy: "The wall was exhausted with a tied least-tile count. No winner this hand.",
     });
   });
 
@@ -383,5 +388,46 @@ describe("LAN table service", () => {
         },
       }),
     ).toBeNull();
+  });
+
+  it("awards friendly exhausted hands to the unique least-tile leader", () => {
+    const match = createMatchState("friendly-progress-lan");
+    const exhausted = {
+      ...match,
+      phase: "complete" as const,
+      winnerSeat: null,
+      players: match.players.map((player, index) =>
+        index === 1 ? { ...player, hand: player.hand.slice(0, 6) } : player,
+      ) as typeof match.players,
+      wall: [],
+      eventLog: [...match.eventLog, "The wall is exhausted."],
+    };
+
+    expect(matchResultFor(exhausted, config)).toMatchObject({
+      winnerName: "Bo Bot",
+      totalFan: 0,
+      deltas: [-1000, 3000, -1000, -1000],
+      fanLines: [{ id: "progress-tiebreak", nameKey: "fan.progressTiebreak", fan: 0 }],
+    });
+  });
+
+  it("keeps coin-table exhausted hands neutral even with a least-tile leader", () => {
+    const match = createMatchState("coin-progress-lan");
+    const exhausted = {
+      ...match,
+      phase: "complete" as const,
+      winnerSeat: null,
+      players: match.players.map((player, index) =>
+        index === 1 ? { ...player, hand: player.hand.slice(0, 6) } : player,
+      ) as typeof match.players,
+      wall: [],
+      eventLog: [...match.eventLog, "The wall is exhausted."],
+    };
+
+    expect(matchResultFor(exhausted, { ...config, tableType: "coin", buyIn: 2_000 })).toMatchObject({
+      winnerName: "Wall Draw",
+      totalFan: 0,
+      deltas: [0, 0, 0, 0],
+    });
   });
 });

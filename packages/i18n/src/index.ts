@@ -72,6 +72,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "waiting.activity": "Room activity",
     "match.mode3": "Old Hong Kong 3 Fan",
     "match.mode1": "Old Hong Kong 1 Fan",
+    "match.modeRiichi": "Riichi Beta",
     "match.hand": "Hand",
     "match.wall": "Wall",
     "match.eastRound": "East Round",
@@ -178,6 +179,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.baseWin": "Basic Win",
     "fan.practiceBasic": "Practice Basic Hand",
     "fan.wallDraw": "Wall Draw",
+    "fan.progressTiebreak": "Progress Tiebreak",
   },
   zh: {
     "nav.lobby": "\u5927\u5385",
@@ -233,6 +235,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "waiting.activity": "æˆ¿é—´åŠ¨æ€",
     "match.mode3": "è€é¦™æ¸¯ä¸‰ç•ª",
     "match.mode1": "è€é¦™æ¸¯ä¸€ç•ª",
+    "match.modeRiichi": "Riichi Beta",
     "match.hand": "æ‰‹ç‰Œ",
     "match.wall": "ç‰Œå¢™",
     "match.eastRound": "ä¸œåœˆ",
@@ -318,6 +321,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.terminalsHonors": "æ··å¹ºä¹",
     "fan.practiceBasic": "ç»ƒä¹ åŸºæœ¬å’Œç‰Œ",
     "fan.wallDraw": "æµå±€",
+    "fan.progressTiebreak": "Progress Tiebreak",
   },
   id: {
     "nav.lobby": "Lobi",
@@ -390,6 +394,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "waiting.activity": "Aktivitas room",
     "match.mode3": "Old Hong Kong 3 Fan",
     "match.mode1": "Old Hong Kong 1 Fan",
+    "match.modeRiichi": "Riichi Beta",
     "match.hand": "Hand",
     "match.wall": "Wall",
     "match.eastRound": "Ronde Timur",
@@ -496,6 +501,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.baseWin": "Menang Dasar",
     "fan.practiceBasic": "Hand Dasar Latihan",
     "fan.wallDraw": "Wall Draw",
+    "fan.progressTiebreak": "Progress Tiebreak",
   },
 };
 

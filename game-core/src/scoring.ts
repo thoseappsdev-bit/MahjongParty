@@ -406,7 +406,7 @@ function tilesFromMeld(meld: string): string[] {
 // Fan gate (1-fan / 3-fan minimum enforcement)
 // ---------------------------------------------------------------------------
 
-export type FanGateMode = "1-fan" | "3-fan";
+export type FanGateMode = "1-fan" | "3-fan" | "riichi";
 
 // Limit hands always satisfy the gate regardless of mode.
 const LIMIT_PATTERN_IDS = new Set(["thirteen-orphans", "all-kongs"]);

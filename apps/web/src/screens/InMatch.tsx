@@ -116,7 +116,7 @@ export function InMatch({
     <div className="screen match-screen">
       <div className="match-header">
         <div>
-          <h1>{t(locale, view.mode === "3-fan" ? "match.mode3" : "match.mode1")}</h1>
+          <h1>{t(locale, matchModeTitleKey(view.mode))}</h1>
           <p>
             {t(locale, "match.hand")} {view.handNumber} - {t(locale, "match.wall")} {view.wallCount} -{" "}
             {view.recentEvent}
@@ -233,6 +233,12 @@ function tutorialGuideKeyFor(action: LegalAction | undefined): string | null {
   }[action];
 }
 
+function matchModeTitleKey(mode: MatchView["mode"]): string {
+  if (mode === "riichi") {
+    return "match.modeRiichi";
+  }
+  return mode === "3-fan" ? "match.mode3" : "match.mode1";
+}
 function statusForView(view: MatchView, canPass: boolean): string {
   if (canPass) {
     return "Claim available: choose a highlighted action, or Pass before the timer reaches zero.";

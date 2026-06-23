@@ -325,7 +325,7 @@ export function App() {
       const nextMatch = resolveNextBotTurn(currentMatch);
       commitMatchState(nextMatch, tableConfig);
       if (nextMatch.phase === "complete") {
-        const finishedResult = matchStateToResult(nextMatch);
+        const finishedResult = matchStateToResult(nextMatch, tableConfig.tableType);
         setCurrentResult(finishedResult);
         recordCompletedHandMissions(finishedResult);
         window.setTimeout(() => setRoute("result"), 500);
@@ -651,7 +651,7 @@ export function App() {
         recordDailyMission({ type: "claim-melds" });
       }
       if (nextMatch.phase === "complete") {
-        const finishedResult = matchStateToResult(nextMatch);
+        const finishedResult = matchStateToResult(nextMatch, tableConfig.tableType);
         setCurrentResult(finishedResult);
         recordCompletedHandMissions(finishedResult);
         window.setTimeout(() => setRoute("result"), 500);

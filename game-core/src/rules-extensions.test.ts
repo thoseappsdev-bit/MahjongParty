@@ -92,6 +92,7 @@ describe("fan gate (feature: 1-fan / 3-fan enforcement)", () => {
   it("knows the minimum per mode", () => {
     expect(minFanForMode("1-fan")).toBe(1);
     expect(minFanForMode("3-fan")).toBe(3);
+    expect(minFanForMode("riichi")).toBe(1);
   });
 
   it("rejects a 2-fan win in 3-fan mode but accepts it in 1-fan mode", () => {

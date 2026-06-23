@@ -27,7 +27,7 @@ export interface Profile {
 export type LocaleCode = "en" | "zh" | "id";
 export type TableType = "friendly" | "coin";
 export type TablePrivacy = "public" | "private";
-export type GameMode = "1-fan" | "3-fan";
+export type GameMode = "1-fan" | "3-fan" | "riichi";
 
 export interface TableConfig {
   mode: GameMode;
@@ -233,4 +233,3 @@ export interface InventoryItem {
   rarity: "common" | "rare" | "epic" | "legendary";
   equipped: boolean;
 }
-

@@ -88,4 +88,21 @@ describe("match engine adapter", () => {
       deltas: [0, 0, 0, 0],
     });
   });
+
+  it("keeps a coin-table exhaustion neutral even with a unique least-tile leader", () => {
+    const match = createMatchState("adapter-coin-draw");
+    const complete = {
+      ...match,
+      phase: "complete" as const,
+      winnerSeat: null,
+      players: match.players.map((player, index) =>
+        index === 1 ? { ...player, hand: player.hand.slice(0, 6) } : player,
+      ) as typeof match.players,
+    };
+
+    expect(matchStateToResult(complete, "coin")).toMatchObject({
+      winnerName: "Wall Draw",
+      deltas: [0, 0, 0, 0],
+    });
+  });
 });

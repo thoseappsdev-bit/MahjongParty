@@ -34,9 +34,9 @@ export function matchStateToView(
   };
 }
 
-export function matchStateToResult(state: MatchState): MatchResult {
+export function matchStateToResult(state: MatchState, tableType: TableType = "friendly"): MatchResult {
   if (state.winnerSeat === null) {
-    return wallDrawResult();
+    return tableType === "coin" ? wallDrawResult() : progressResult(state);
   }
 
   const winnerSeat = state.winnerSeat ?? 0;
@@ -62,6 +62,32 @@ function wallDrawResult(): MatchResult {
     fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
     deltas: [0, 0, 0, 0],
     policyCopy: "The wall was exhausted. No winner this hand.",
+  };
+}
+function progressResult(state: MatchState): MatchResult {
+  const counts = state.players.map((player) => player.hand.length);
+  const fewestTiles = Math.min(...counts);
+  const leadingSeats = counts.flatMap((count, index) => (count === fewestTiles ? [index] : []));
+
+  if (leadingSeats.length !== 1) {
+    return {
+      winnerSeat: 0,
+      winnerName: "Wall Draw",
+      totalFan: 0,
+      fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
+      deltas: [0, 0, 0, 0],
+      policyCopy: "The wall was exhausted with a tied least-tile count. No winner this hand.",
+    };
+  }
+
+  const winnerSeat = leadingSeats[0];
+  return {
+    winnerSeat: winnerSeat as MatchResult["winnerSeat"],
+    winnerName: state.players[winnerSeat].name,
+    totalFan: 0,
+    fanLines: [{ id: "progress-tiebreak", nameKey: "fan.progressTiebreak", fan: 0 }],
+    deltas: state.players.map((player) => (player.seat === winnerSeat ? 3000 : -1000)) as MatchResult["deltas"],
+    policyCopy: "Casual fallback: the wall was exhausted, so the player with the fewest tiles left wins this friendly hand.",
   };
 }
 

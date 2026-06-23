@@ -386,14 +386,7 @@ export function matchResultFor(match: MatchState, config?: Pick<TableConfig, "ta
     return null;
   }
   if (match.winnerSeat === null) {
-    return {
-      winnerSeat: 0,
-      winnerName: "Wall Draw",
-      totalFan: 0,
-      fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
-      deltas: [0, 0, 0, 0],
-      policyCopy: "The wall was exhausted. No winner this hand.",
-    };
+    return config?.tableType === "coin" ? wallDrawMatchResult() : exhaustedProgressResult(match);
   }
 
   const winner = match.players[match.winnerSeat];
@@ -429,6 +422,36 @@ export function matchResultFor(match: MatchState, config?: Pick<TableConfig, "ta
   };
 }
 
+function wallDrawMatchResult(policyCopy = "The wall was exhausted. No winner this hand."): MatchResult {
+  return {
+    winnerSeat: 0,
+    winnerName: "Wall Draw",
+    totalFan: 0,
+    fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
+    deltas: [0, 0, 0, 0],
+    policyCopy,
+  };
+}
+
+function exhaustedProgressResult(match: MatchState): MatchResult {
+  const counts = match.players.map((player) => player.hand.length);
+  const fewestTiles = Math.min(...counts);
+  const leadingSeats = counts.flatMap((count, index) => (count === fewestTiles ? [index as Seat] : []));
+
+  if (leadingSeats.length !== 1) {
+    return wallDrawMatchResult("The wall was exhausted with a tied least-tile count. No winner this hand.");
+  }
+
+  const winnerSeat = leadingSeats[0];
+  return {
+    winnerSeat,
+    winnerName: match.players[winnerSeat].name,
+    totalFan: 0,
+    fanLines: [{ id: "progress-tiebreak", nameKey: "fan.progressTiebreak", fan: 0 }],
+    deltas: match.players.map((player) => (player.seat === winnerSeat ? 3000 : -1000)) as MatchResult["deltas"],
+    policyCopy: "Casual fallback: the wall was exhausted, so the player with the fewest tiles left wins this friendly hand.",
+  };
+}
 export function coinSettlementDeltasFor(
   room: Pick<LanRoomSnapshot, "config" | "phase" | "result" | "seats">,
 ): Array<{ userId: string; amount: number }> | null {
@@ -467,7 +490,7 @@ export function coinSettlementDeltasFor(
 const supportedCoinBuyIns = new Set([2_000]);
 
 export function validateTableConfig(config: TableConfig): void {
-  if (config.mode !== "1-fan" && config.mode !== "3-fan") {
+  if (config.mode !== "1-fan" && config.mode !== "3-fan" && config.mode !== "riichi") {
     throw new Error("Unsupported game mode");
   }
   if (config.privacy !== "public" && config.privacy !== "private") {
@@ -484,6 +507,9 @@ export function validateTableConfig(config: TableConfig): void {
       throw new Error("Friendly tables cannot have a buy-in");
     }
     return;
+  }
+  if (config.mode === "riichi") {
+    throw new Error("Riichi Beta is friendly-room only for now");
   }
   if (config.tableType !== "coin" || !supportedCoinBuyIns.has(config.buyIn)) {
     throw new Error("Coin tables require a supported buy-in");

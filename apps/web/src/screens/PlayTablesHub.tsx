@@ -140,7 +140,7 @@ export function PlayTablesHub({
           <TableCard
             key={table.id}
             title={table.title}
-            meta={`${table.mode === "3-fan" ? "Old Hong Kong 3 Fan" : "Old Hong Kong 1 Fan"} · ${table.host}`}
+            meta={`${tableModeLabel(table.mode)} · ${table.host}`}
             action={
               <Button
                 tone={table.tableType === "coin" ? "secondary" : "primary"}
@@ -192,4 +192,11 @@ function discordStatusText(locale: LocaleCode, discordActivity: DiscordActivityS
     return discordActivity.error ?? t(locale, "play.discordUnavailable");
   }
   return t(locale, "play.discordLaunchHint");
+}
+
+function tableModeLabel(mode: PublicTable["mode"]): string {
+  if (mode === "riichi") {
+    return "Riichi Beta";
+  }
+  return mode === "3-fan" ? "Old Hong Kong 3 Fan" : "Old Hong Kong 1 Fan";
 }
