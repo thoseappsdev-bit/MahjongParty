@@ -6,6 +6,7 @@ import {
   createMatchState,
   createPracticeMatch,
   createTutorialMatch,
+  riichi,
   resolveMatchAction,
   resolveNextBotTurn,
   practiceToMatchView,
@@ -43,6 +44,7 @@ import {
 import { createPracticeRoom, createRoom } from "./mock/mockGameRoom";
 
 import { matchStateToResult, matchStateToView } from "./mock/matchEngineAdapter";
+import { chooseRiichiBotDiscard, riichiStateToResult, riichiStateToView } from "./mock/riichiEngineAdapter";
 import { resultFromPractice } from "./mock/practiceResult";
 import { loadStoredLocale, saveStoredLocale } from "./localeStorage";
 import { loadStoredWallet, saveStoredWallet } from "./walletStorage";
@@ -135,6 +137,7 @@ export function App() {
   const [room, setRoom] = useState<RoomLobbyState>(baseLobby);
   const [matchView, setMatchView] = useState<MatchView>(initialMatchView);
   const [matchEngineState, setMatchEngineState] = useState<MatchState | null>(null);
+  const [riichiEngineState, setRiichiEngineState] = useState<riichi.RiichiMatchState | null>(null);
   const [currentResult, setCurrentResult] = useState<MatchResult>(result);
   const [practiceState, setPracticeState] = useState<PracticeMatchState | null>(null);
   const [isPractice, setIsPractice] = useState(false);
@@ -155,6 +158,7 @@ export function App() {
   const [discordActivity, setDiscordActivity] = useState<DiscordActivityState>(discordActivityUnavailable);
   const practiceStateRef = useRef<PracticeMatchState | null>(null);
   const matchEngineStateRef = useRef<MatchState | null>(null);
+  const riichiEngineStateRef = useRef<riichi.RiichiMatchState | null>(null);
 
   const activeProfile = useMemo(
     () =>
@@ -224,6 +228,12 @@ export function App() {
     setMatchView(matchStateToView(nextMatch, config));
   }
 
+  function commitRiichiState(nextMatch: riichi.RiichiMatchState, config: TableConfig) {
+    riichiEngineStateRef.current = nextMatch;
+    setRiichiEngineState(nextMatch);
+    setMatchView(riichiStateToView(nextMatch, config.tableType));
+  }
+
   function clearPracticeState() {
     practiceStateRef.current = null;
     setPracticeState(null);
@@ -232,6 +242,11 @@ export function App() {
   function clearMatchState() {
     matchEngineStateRef.current = null;
     setMatchEngineState(null);
+  }
+
+  function clearRiichiState() {
+    riichiEngineStateRef.current = null;
+    setRiichiEngineState(null);
   }
 
   function rememberLanSession(session: LanSession | null) {
@@ -335,6 +350,39 @@ export function App() {
 
     return () => window.clearTimeout(botTimer);
   }, [isPractice, matchEngineState, tableConfig]);
+
+  useEffect(() => {
+    if (
+      isPractice ||
+      !riichiEngineState ||
+      riichiEngineState.phase !== "playing" ||
+      !riichiEngineState.players[riichiEngineState.turnSeat].isBot
+    ) {
+      return;
+    }
+
+    const botTimer = window.setTimeout(() => {
+      const currentMatch = riichiEngineStateRef.current;
+      if (!currentMatch || currentMatch.phase !== "playing" || !currentMatch.players[currentMatch.turnSeat].isBot) {
+        return;
+      }
+
+      const discard = chooseRiichiBotDiscard(currentMatch);
+      if (!discard) {
+        return;
+      }
+      const nextMatch = riichi.resolveRiichiAction(currentMatch, { seat: currentMatch.turnSeat, type: "discard", tile: discard });
+      commitRiichiState(nextMatch, tableConfig);
+      if (nextMatch.phase === "complete") {
+        const finishedResult = riichiStateToResult(nextMatch);
+        setCurrentResult(finishedResult);
+        recordCompletedHandMissions(finishedResult);
+        window.setTimeout(() => setRoute("result"), 500);
+      }
+    }, 950);
+
+    return () => window.clearTimeout(botTimer);
+  }, [isPractice, riichiEngineState, tableConfig]);
 
   useEffect(() => {
     setDiscordActivity((state) => (state.status === "unavailable" ? { ...state, status: "connecting" } : state));
@@ -542,10 +590,17 @@ export function App() {
     setIsPractice(false);
     setPracticeMode(null);
     clearPracticeState();
-    const nextMatch = createMatchState(`room-${room.roomCode}-${Date.now()}`);
+    clearMatchState();
+    clearRiichiState();
     setTutorialOpen(false);
     setCurrentResult(result);
-    commitMatchState(nextMatch, room.config);
+    if (room.config.mode === "riichi") {
+      const nextMatch = riichi.createRiichiMatchState(`riichi-room-${room.roomCode}-${Date.now()}`);
+      commitRiichiState(nextMatch, room.config);
+    } else {
+      const nextMatch = createMatchState(`room-${room.roomCode}-${Date.now()}`, { mode: room.config.mode });
+      commitMatchState(nextMatch, room.config);
+    }
     setRoute("match");
   }
 
@@ -576,6 +631,7 @@ export function App() {
         setLanEventLog(null);
         setLanAuditMessages(null);
         clearMatchState();
+        clearRiichiState();
         clearPracticeState();
         setRoute("play");
         showToast(`Left room ${leavingSession.roomCode}.`);
@@ -591,6 +647,7 @@ export function App() {
     const nextPractice = createPracticeMatch(`practice-${Date.now()}`);
     setRoom(practiceRoom);
     clearMatchState();
+    clearRiichiState();
     commitPracticeState(nextPractice);
     setIsPractice(true);
     setPracticeMode("ai");
@@ -607,6 +664,7 @@ export function App() {
     const nextPractice = createTutorialMatch();
     setRoom(practiceRoom);
     clearMatchState();
+    clearRiichiState();
     commitPracticeState(nextPractice);
     setIsPractice(true);
     setPracticeMode("tutorial");
@@ -637,6 +695,28 @@ export function App() {
       }
       if (nextPractice.phase === "complete") {
         const finishedResult = resultFromPractice(nextPractice);
+        setCurrentResult(finishedResult);
+        recordCompletedHandMissions(finishedResult);
+        window.setTimeout(() => setRoute("result"), 500);
+      }
+      return;
+    }
+
+    const currentRiichiMatch = riichiEngineStateRef.current;
+    if (currentRiichiMatch) {
+      if (intent.type !== "discard" && intent.type !== "win") {
+        showToast("Riichi Beta supports discard and self-draw win first.");
+        return;
+      }
+      const riichiTile = intent.tile && riichi.isRiichiTile(intent.tile) ? intent.tile : undefined;
+      const nextMatch = riichi.resolveRiichiAction(currentRiichiMatch, {
+        seat: 0,
+        type: intent.type,
+        tile: riichiTile ?? (intent.type === "discard" ? currentRiichiMatch.players[0].hand[0] : undefined),
+      });
+      commitRiichiState(nextMatch, tableConfig);
+      if (nextMatch.phase === "complete") {
+        const finishedResult = riichiStateToResult(nextMatch);
         setCurrentResult(finishedResult);
         recordCompletedHandMissions(finishedResult);
         window.setTimeout(() => setRoute("result"), 500);
@@ -1017,6 +1097,7 @@ export function App() {
     </div>
   );
 }
+
 
 
 

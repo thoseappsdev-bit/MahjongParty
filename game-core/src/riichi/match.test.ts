@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { advanceRiichiRound, finalizeHanchan, settleTenpaiNoten, type RiichiHandResult, type RiichiMatchState } from "./index";
 
-function state(overrides: Partial<RiichiMatchState> = {}): RiichiMatchState {
+type TestStateOverrides = Omit<Partial<RiichiMatchState>, "context" | "players"> & {
+  context?: Partial<RiichiMatchState["context"]>;
+  players?: Array<Partial<RiichiMatchState["players"][number]>>;
+};
+
+function state(overrides: TestStateOverrides = {}): RiichiMatchState {
   const { players: playerOverrides, context: contextOverrides, ...stateOverrides } = overrides;
   return {
     mode: "riichi",
@@ -113,7 +118,7 @@ describe("WRC Riichi match progression", () => {
           { points: 42000 },
           { points: 35000 },
           { points: 42000 },
-        ] as Partial<RiichiMatchState["players"][number]>[],
+        ],
       }),
       winResult({ winnerSeat: 0, deltas: [12000, -12000, 0, 0], riichiDeposits: [] }),
     );
@@ -131,7 +136,7 @@ describe("WRC Riichi match progression", () => {
           { points: 45000, name: "B" },
           { points: 30000, name: "C" },
           { points: 0, name: "D" },
-        ] as Partial<RiichiMatchState["players"][number]>[],
+        ],
       }),
     );
 
@@ -143,6 +148,7 @@ describe("WRC Riichi match progression", () => {
     ]);
   });
 });
+
 
 
 
