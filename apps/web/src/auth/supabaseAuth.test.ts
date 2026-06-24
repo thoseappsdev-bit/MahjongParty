@@ -16,13 +16,13 @@ function fakeClient(options: {
   client: AuthClientLike;
   emit: (event: string, session: SessionLike | null) => void;
   signInCount: () => number;
-  otpCalls: () => Array<{ email: string; redirectTo?: string }>;
+  otpCalls: () => Array<{ email: string; redirectTo?: string; captchaToken?: string }>;
   signOutCount: () => number;
 } {
   let listener: ((event: string, session: SessionLike | null) => void) | null = null;
   let signInCalls = 0;
   let signOutCalls = 0;
-  const otpRequests: Array<{ email: string; redirectTo?: string }> = [];
+  const otpRequests: Array<{ email: string; redirectTo?: string; captchaToken?: string }> = [];
   const client: AuthClientLike = {
     auth: {
       async getSession() {
@@ -33,7 +33,11 @@ function fakeClient(options: {
         return { data: { session: options.anon?.session ?? null }, error: options.anon?.error ?? null };
       },
       async signInWithOtp(input) {
-        otpRequests.push({ email: input.email, redirectTo: input.options?.emailRedirectTo });
+        otpRequests.push({
+          email: input.email,
+          redirectTo: input.options?.emailRedirectTo,
+          captchaToken: input.options?.captchaToken,
+        });
         return { data: {}, error: null };
       },
       async signOut() {
@@ -115,9 +119,18 @@ describe("startSupabaseAuth", () => {
 describe("Supabase auth actions", () => {
   it("sends a trimmed magic-link request with a redirect URL", async () => {
     const fake = fakeClient({ initialSession: null });
-    const result = await sendSupabaseMagicLink(fake.client, " friend@example.com ", "https://mahjong.example.com/settings");
+    const result = await sendSupabaseMagicLink(
+      fake.client,
+      " friend@example.com ",
+      "https://mahjong.example.com/settings",
+      "captcha-token",
+    );
     expect(result).toEqual({ ok: true });
-    expect(fake.otpCalls()).toEqual([{ email: "friend@example.com", redirectTo: "https://mahjong.example.com/settings" }]);
+    expect(fake.otpCalls()).toEqual([{
+      email: "friend@example.com",
+      redirectTo: "https://mahjong.example.com/settings",
+      captchaToken: "captcha-token",
+    }]);
   });
 
   it("rejects an empty magic-link email before calling Supabase", async () => {

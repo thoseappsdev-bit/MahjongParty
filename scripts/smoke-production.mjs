@@ -1,6 +1,7 @@
 const baseUrl = (process.argv[2] ?? process.env.MAHJONG_PRODUCTION_URL ?? "https://mahjong-party.youraimates.workers.dev").replace(/\/$/, "");
 const expectedAuthMode = process.env.MAHJONG_EXPECTED_AUTH_MODE ?? "jwt";
 const expectedEconomyMode = process.env.MAHJONG_EXPECTED_ECONOMY_MODE ?? "supabase";
+const expectedTurnstileMode = process.env.MAHJONG_EXPECTED_TURNSTILE_MODE ?? "configured";
 
 function assert(condition, message) {
   if (!condition) {
@@ -22,6 +23,7 @@ assert(home.ok, `home returned HTTP ${home.status}`);
 const headers = Object.fromEntries(home.headers.entries());
 for (const [name, expected] of [
   ["content-security-policy", "frame-ancestors https://discord.com https://*.discord.com"],
+  ["content-security-policy", "challenges.cloudflare.com"],
   ["permissions-policy", "camera=()"],
   ["referrer-policy", "strict-origin-when-cross-origin"],
   ["x-content-type-options", "nosniff"],
@@ -38,6 +40,7 @@ assert(health.service === "mahjong-party-cloudflare", `unexpected health service
 assert(health.roomRuntime === "durable-object", `unexpected room runtime ${health.roomRuntime}`);
 assert(health.authMode === expectedAuthMode, `expected authMode ${expectedAuthMode}, got ${health.authMode}`);
 assert(health.economyMode === expectedEconomyMode, `expected economyMode ${expectedEconomyMode}, got ${health.economyMode}`);
+assert(health.turnstileMode === expectedTurnstileMode, `expected turnstileMode ${expectedTurnstileMode}, got ${health.turnstileMode}`);
 
 const catalogResponse = await fetch(`${baseUrl}/api/economy/catalog`);
 assert(catalogResponse.ok, `catalog returned HTTP ${catalogResponse.status}`);

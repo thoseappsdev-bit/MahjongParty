@@ -2,6 +2,10 @@
 import { formatT, t } from "@mahjong/i18n";
 import type { DailyMission, DailyReward, DailyStreakDay, LocaleCode } from "@mahjong/shared-types";
 import { Coins, Gift, Sparkles, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { TurnstileWidget } from "../turnstile/TurnstileWidget";
+
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? "";
 
 function DailyCardHeader({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
   return (
@@ -35,14 +39,40 @@ export function DailyRewards({
   rewards: DailyReward[];
   spinUsed: boolean;
   streakDays: DailyStreakDay[];
-  onClaim: (rewardId: string) => void;
-  onMissionClaim: (missionId: string) => void;
-  onSpin: () => void;
+  onClaim: (rewardId: string, turnstileToken: string) => void;
+  onMissionClaim: (missionId: string, turnstileToken: string) => void;
+  onSpin: (turnstileToken: string) => void;
   onRewardAd: () => void;
 }) {
   const dailyReward = rewards.find((reward) => reward.id === "daily-login") ?? rewards[0];
   const bonusCap = 3;
   const bonusUsed = bonusClaims >= bonusCap;
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const economyMutationBlocked = Boolean(turnstileSiteKey && !turnstileToken);
+
+  function consumeTurnstileToken(): string | null {
+    if (economyMutationBlocked) return null;
+    const token = turnstileToken ?? "";
+    setTurnstileToken(null);
+    setTurnstileResetKey((key) => key + 1);
+    return token;
+  }
+
+  function claimReward(rewardId: string) {
+    const token = consumeTurnstileToken();
+    if (token !== null) onClaim(rewardId, token);
+  }
+
+  function claimMission(missionId: string) {
+    const token = consumeTurnstileToken();
+    if (token !== null) onMissionClaim(missionId, token);
+  }
+
+  function spin() {
+    const token = consumeTurnstileToken();
+    if (token !== null) onSpin(token);
+  }
 
   return (
     <div className="screen">
@@ -53,6 +83,18 @@ export function DailyRewards({
         </div>
       </div>
 
+      {turnstileSiteKey ? (
+        <div className="turnstile-gate turnstile-gate-economy">
+          <TurnstileWidget
+            action="economy_claim"
+            ariaLabel="Verify reward claim"
+            onToken={setTurnstileToken}
+            resetKey={turnstileResetKey}
+            siteKey={turnstileSiteKey}
+          />
+        </div>
+      ) : null}
+
       <div className="daily-actions">
         <Panel className="daily-card">
           <DailyCardHeader icon={Gift} title={dailyReward.title} detail={dailyReward.detail} />
@@ -60,7 +102,7 @@ export function DailyRewards({
             {dailyReward.rewardCoins.toLocaleString()} Coins
             {dailyReward.rewardGems > 0 ? ` + ${dailyReward.rewardGems} Gems` : ""}
           </p>
-          <Button disabled={dailyClaimed} onClick={() => onClaim(dailyReward.id)}>
+          <Button disabled={dailyClaimed || economyMutationBlocked} onClick={() => claimReward(dailyReward.id)}>
             {dailyClaimed ? t(locale, "common.claimed") : t(locale, "common.claim")}
           </Button>
         </Panel>
@@ -72,7 +114,7 @@ export function DailyRewards({
             <span>Gems 18%</span>
             <span>Cosmetic fragment 10%</span>
           </div>
-          <Button disabled={spinUsed} tone="secondary" onClick={onSpin}>
+          <Button disabled={spinUsed || economyMutationBlocked} tone="secondary" onClick={spin}>
             {spinUsed ? t(locale, "common.claimed") : t(locale, "daily.spin")}
           </Button>
         </Panel>
@@ -129,7 +171,7 @@ export function DailyRewards({
                   <progress value={mission.progress} max={mission.target} />
                   <small>{mission.rewardCoins.toLocaleString()} Coins</small>
                 </div>
-                <Button disabled={!complete || mission.claimed} tone={complete ? "secondary" : "ghost"} onClick={() => onMissionClaim(mission.id)}>
+                <Button disabled={!complete || mission.claimed || economyMutationBlocked} tone={complete ? "secondary" : "ghost"} onClick={() => claimMission(mission.id)}>
                   {mission.claimed ? t(locale, "common.claimed") : complete ? t(locale, "common.claim") : `${progressPercent}%`}
                 </Button>
               </div>

@@ -19,4 +19,10 @@ describe("DailyRewards layout", () => {
     expect(styles).toMatch(/\.daily-card\s*>\s*\.mp-button\s*{[^}]*margin-top:\s*auto/s);
     expect(styles).toMatch(/\.odds-list\s+span\s*{[^}]*overflow-wrap:\s*anywhere/s);
   });
-});
+
+  it("requires and consumes one economy Turnstile token per reward mutation", () => {
+    expect(source).toContain("TurnstileWidget");
+    expect(source).toContain('action="economy_claim"');
+    expect(source).toContain("turnstileToken");
+    expect(source).toContain("consumeTurnstileToken");
+  });});

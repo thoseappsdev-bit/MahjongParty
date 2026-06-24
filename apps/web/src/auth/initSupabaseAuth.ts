@@ -47,12 +47,16 @@ export async function initSupabaseAuth(
   return { userId: result.userId, profile: result.profile, error: result.error };
 }
 
-export async function sendSupabaseMagicLink(email: string, redirectTo?: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendSupabaseMagicLink(
+  email: string,
+  redirectTo?: string,
+  captchaToken?: string,
+): Promise<{ ok: boolean; error?: string }> {
   const client = await loadSupabaseClient();
   if (!client) {
     return { ok: false, error: "Supabase env not configured" };
   }
-  return sendMagicLinkWithClient(client as unknown as AuthClientLike, email, redirectTo);
+  return sendMagicLinkWithClient(client as unknown as AuthClientLike, email, redirectTo, captchaToken);
 }
 
 export async function signOutSupabaseSession(): Promise<{ ok: boolean; error?: string }> {

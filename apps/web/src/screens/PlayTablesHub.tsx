@@ -6,6 +6,9 @@ import { bankrollReserveFor } from "@mahjong/shared-types";
 import type { LocaleCode, Profile, PublicTable, TableConfig } from "@mahjong/shared-types";
 import type { DiscordActivityState } from "../discord/discordActivity";
 import { defaultTableConfig } from "../mock/mockData";
+import { TurnstileWidget } from "../turnstile/TurnstileWidget";
+
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? "";
 
 export function PlayTablesHub({
   discordActivity,
@@ -26,18 +29,39 @@ export function PlayTablesHub({
   profile: Profile;
   tables: PublicTable[];
   onCreate: () => void;
-  onDiscordRoom: (displayName: string) => void;
+  onDiscordRoom: (displayName: string, turnstileToken: string) => void;
   onDiscordSignIn: () => void;
-  onFriendHost: (displayName: string) => void;
+  onFriendHost: (displayName: string, turnstileToken: string) => void;
   onFriendJoin: (roomCode: string, displayName: string) => void;
   onJoin: (config: TableConfig) => void;
 }) {
   const [displayName, setDisplayName] = useState(profile.displayName);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [joinCode, setJoinCode] = useState(() =>
     typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("room")?.toUpperCase() ?? "",
   );
   const safeName = displayName.trim() || profile.displayName;
   const canUseDiscordRoom = discordActivity.status === "ready" || discordActivity.status === "authenticated";
+  const roomCreationBlocked = Boolean(turnstileSiteKey && !turnstileToken);
+
+  function consumeTurnstileToken(): string | null {
+    if (roomCreationBlocked) return null;
+    const token = turnstileToken ?? "";
+    setTurnstileToken(null);
+    setTurnstileResetKey((key) => key + 1);
+    return token;
+  }
+
+  function hostFriendRoom() {
+    const token = consumeTurnstileToken();
+    if (token !== null) onFriendHost(safeName, token);
+  }
+
+  function openDiscordRoom() {
+    const token = consumeTurnstileToken();
+    if (token !== null) onDiscordRoom(safeName, token);
+  }
 
   useEffect(() => {
     setDisplayName(profile.displayName);
@@ -56,12 +80,24 @@ export function PlayTablesHub({
         </Button>
       </div>
 
+      {turnstileSiteKey ? (
+        <div className="turnstile-gate turnstile-gate-rooms">
+          <TurnstileWidget
+            action="room_create"
+            ariaLabel="Verify room creation"
+            onToken={setTurnstileToken}
+            resetKey={turnstileResetKey}
+            siteKey={turnstileSiteKey}
+          />
+        </div>
+      ) : null}
+
       <div className="friend-room-grid">
         <TableCard
           title={t(locale, "play.friendRoom")}
           meta={t(locale, "play.friendRoomBody")}
           action={
-            <Button onClick={() => onFriendHost(safeName)}>
+            <Button disabled={roomCreationBlocked} onClick={hostFriendRoom}>
               <Gamepad2 size={18} />
               {t(locale, "play.hostFriendRoom")}
             </Button>
@@ -111,7 +147,7 @@ export function PlayTablesHub({
                 {t(locale, "play.discordSignIn")}
               </Button>
             ) : discordActivity.status === "authenticated" ? (
-              <Button onClick={() => onDiscordRoom(safeName)}>{t(locale, "play.discordJoin")}</Button>
+              <Button disabled={roomCreationBlocked} onClick={openDiscordRoom}>{t(locale, "play.discordJoin")}</Button>
             ) : discordActivity.status === "authenticating" ? (
               <Button disabled tone="secondary">
                 {t(locale, "play.discordSigningIn")}

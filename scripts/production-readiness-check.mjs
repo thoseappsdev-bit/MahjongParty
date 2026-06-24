@@ -58,6 +58,7 @@ check("web build ships baseline security headers", () => {
     "X-Content-Type-Options: nosniff",
     "Referrer-Policy: strict-origin-when-cross-origin",
     "Permissions-Policy:",
+    "https://challenges.cloudflare.com",
   ]) {
     assert(headers.includes(token), `security header missing: ${token}`);
   }
@@ -122,7 +123,7 @@ check("deploy workflow runs gates and smoke after deploy", () => {
 });
 check("manual deploy uses Cloudflare and public client secrets only", () => {
   const deploy = read(".github/workflows/cloudflare-deploy.yml");
-  for (const secret of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_DISCORD_CLIENT_ID"]) {
+  for (const secret of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_DISCORD_CLIENT_ID", "VITE_TURNSTILE_SITE_KEY"]) {
     assert(deploy.includes(`secrets.${secret}`), `deploy workflow missing ${secret}`);
   }
   assert(!deploy.includes("SUPABASE_SERVICE_ROLE_KEY"), "service role key should stay in Cloudflare Worker secrets, not GitHub build env");
@@ -134,6 +135,8 @@ check("production economy and paid-table surfaces fail closed", () => {
     'rateLimitResponseFor(request, env)',
     'Too many requests',
     'economyMode: economyModeFor(env)',
+    'turnstileMode: turnstileModeFor(env)',
+    'turnstileResponseFor(request, env)',
     'Persistent economy is not configured',
     'Mission progress is recorded by authoritative matches',
     'recordMissionProgressForSnapshotIfNeeded',
@@ -159,6 +162,7 @@ check("production smoke and secret scripts are wired", () => {
     "frame-ancestors https://discord.com https://*.discord.com",
     "MAHJONG_EXPECTED_ECONOMY_MODE",
     "health.economyMode",
+    "health.turnstileMode",
     "catalog.gemPacks.length === 0",
   ]) {
     assert(smoke.includes(token), `production smoke script missing ${token}`);

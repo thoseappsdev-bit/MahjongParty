@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync(new URL("./Settings.tsx", import.meta.url), "utf8");
@@ -12,4 +12,9 @@ describe("Settings account panel", () => {
     expect(source).toContain("onNewGuest");
     expect(source).toContain("settings.emailPlaceholder");
   });
-});
+
+  it("requires a fresh magic-link Turnstile token", () => {
+    expect(source).toContain("TurnstileWidget");
+    expect(source).toContain('action="magic_link"');
+    expect(source).toContain("captchaToken");
+  });});

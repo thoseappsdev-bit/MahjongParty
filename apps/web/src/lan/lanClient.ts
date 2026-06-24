@@ -35,13 +35,18 @@ export function resolveLanApiBase(
   return `${location.protocol}//${location.hostname}:8787`;
 }
 
-export async function createLanRoom(apiBase: string, config: TableConfig, profile: Profile): Promise<LanJoinResponse> {
+export async function createLanRoom(
+  apiBase: string,
+  config: TableConfig,
+  profile: Profile,
+  turnstileToken: string,
+): Promise<LanJoinResponse> {
   return postJson(apiUrl(apiBase, "/api/rooms"), {
     config,
     userId: profile.userId,
     displayName: profile.displayName,
     avatar: profile.avatar,
-  });
+  }, turnstileToken);
 }
 
 export async function getLanHealth(apiBase: string): Promise<LanHealth> {
@@ -55,6 +60,7 @@ export async function getLanHealth(apiBase: string): Promise<LanHealth> {
 export async function joinDiscordActivityRoom(
   apiBase: string,
   input: { instanceId: string; config: TableConfig; profile: Profile },
+  turnstileToken: string,
 ): Promise<LanJoinResponse> {
   return postJson(apiUrl(apiBase, "/api/discord/rooms"), {
     instanceId: input.instanceId,
@@ -62,7 +68,7 @@ export async function joinDiscordActivityRoom(
     userId: input.profile.userId,
     displayName: input.profile.displayName,
     avatar: input.profile.avatar,
-  });
+  }, turnstileToken);
 }
 
 export async function joinLanRoom(apiBase: string, roomCode: string, profile: Profile): Promise<LanJoinResponse> {
@@ -120,10 +126,14 @@ function apiUrl(apiBase: string, path: string): string {
   return path === "/health" ? "/api/health" : path;
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+async function postJson<T>(url: string, body: unknown, turnstileToken?: string): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", ...authHeaders() },
+    headers: {
+      "content-type": "application/json",
+      ...authHeaders(),
+      ...(turnstileToken !== undefined ? { "x-turnstile-token": turnstileToken } : {}),
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {

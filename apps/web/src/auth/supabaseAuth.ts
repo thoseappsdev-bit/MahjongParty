@@ -15,7 +15,7 @@ export interface AuthClientLike {
     signInAnonymously(): Promise<{ data: { session: SessionLike | null }; error: { message: string } | null }>;
     signInWithOtp(input: {
       email: string;
-      options?: { emailRedirectTo?: string };
+      options?: { emailRedirectTo?: string; captchaToken?: string };
     }): Promise<{ data: unknown; error: { message: string } | null }>;
     signOut(): Promise<{ error: { message: string } | null }>;
     onAuthStateChange(
@@ -97,14 +97,19 @@ export async function sendSupabaseMagicLink(
   client: AuthClientLike,
   email: string,
   redirectTo?: string,
+  captchaToken?: string,
 ): Promise<AuthActionResult> {
   const trimmed = email.trim();
   if (!trimmed) {
     return { ok: false, error: "Email is required" };
   }
+  const options = {
+    ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
+    ...(captchaToken !== undefined ? { captchaToken } : {}),
+  };
   const { error } = await client.auth.signInWithOtp({
     email: trimmed,
-    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+    options: Object.keys(options).length > 0 ? options : undefined,
   });
   return error ? { ok: false, error: error.message } : { ok: true };
 }

@@ -451,9 +451,9 @@ export function App() {
     window.setTimeout(() => setToast(null), 2200);
   }
 
-  async function handleSendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
+  async function handleSendMagicLink(email: string, captchaToken: string): Promise<{ ok: boolean; error?: string }> {
     const redirectTo = typeof window === "undefined" ? undefined : window.location.href;
-    const result = await sendSupabaseMagicLink(email, redirectTo);
+    const result = await sendSupabaseMagicLink(email, redirectTo, captchaToken);
     if (result.ok) {
       showToast(t(locale, "settings.magicLinkSent"));
       return result;
@@ -697,8 +697,8 @@ export function App() {
     };
   }
 
-  function handleLanHost(displayName: string) {
-    createLanRoom(lanApiBase, defaultTableConfig, lanProfileFor(displayName))
+  function handleLanHost(displayName: string, turnstileToken: string) {
+    createLanRoom(lanApiBase, defaultTableConfig, lanProfileFor(displayName), turnstileToken)
       .then((response) => {
         rememberLanSession({ roomCode: response.room.roomCode, seat: response.seat, userId: response.userId });
         syncLanSnapshot(response.room);
@@ -719,7 +719,7 @@ export function App() {
       .catch((error) => showToast(error instanceof Error ? error.message : "Friend room join failed."));
   }
 
-  function handleDiscordRoom(displayName: string) {
+  function handleDiscordRoom(displayName: string, turnstileToken: string) {
     if ((discordActivity.status !== "ready" && discordActivity.status !== "authenticated") || !discordActivity.instanceId) {
       showToast("Discord Activity is not ready yet.");
       return;
@@ -729,7 +729,7 @@ export function App() {
       instanceId: discordActivity.instanceId,
       config: defaultTableConfig,
       profile: lanProfileFor(displayName),
-    })
+    }, turnstileToken)
       .then((response) => {
         rememberLanSession({ roomCode: response.room.roomCode, seat: response.seat, userId: response.userId });
         syncLanSnapshot(response.room);
@@ -780,14 +780,14 @@ export function App() {
       .catch((error) => showToast(error instanceof Error ? error.message : "Purchase failed."));
   }
 
-  function handleClaimReward(rewardId: string) {
+  function handleClaimReward(rewardId: string, turnstileToken: string) {
     const reward = rewards.find((entry) => entry.id === rewardId);
     if (!reward) {
       showToast("Reward unavailable.");
       return;
     }
 
-    claimDailyRewardFromBackend(lanApiBase, activeProfile.userId)
+    claimDailyRewardFromBackend(lanApiBase, activeProfile.userId, turnstileToken)
       .then((response) => {
         setWallet(response.wallet);
         setDailyClaimed(true);
@@ -803,8 +803,8 @@ export function App() {
       });
   }
 
-  function handleClaimMission(missionId: string) {
-    claimMissionFromBackend(lanApiBase, activeProfile.userId, missionId)
+  function handleClaimMission(missionId: string, turnstileToken: string) {
+    claimMissionFromBackend(lanApiBase, activeProfile.userId, missionId, turnstileToken)
       .then((response) => {
         setWallet(response.wallet);
         setMissions((items) => items.map((item) => (item.id === missionId ? response.mission : item)));
@@ -825,13 +825,13 @@ export function App() {
       recordDailyMission({ type: "win-with-pong" });
     }
   }
-  function handleSpinWheel() {
+  function handleSpinWheel(turnstileToken: string) {
     if (dailySpinUsed) {
       showToast("Lucky Draw already used today.");
       return;
     }
 
-    spinWheelFromBackend(lanApiBase, activeProfile.userId)
+    spinWheelFromBackend(lanApiBase, activeProfile.userId, turnstileToken)
       .then((response) => {
         setWallet(response.wallet);
         setDailySpinUsed(true);
@@ -1016,7 +1016,6 @@ export function App() {
     </div>
   );
 }
-
 
 
 

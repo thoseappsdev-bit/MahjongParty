@@ -35,6 +35,7 @@ Set these in GitHub repository or environment secrets before running the manual 
 | `VITE_SUPABASE_URL` | Browser-safe Supabase project URL embedded into the Vite production build. |
 | `VITE_SUPABASE_ANON_KEY` | Browser-safe Supabase anon key embedded into the Vite production build. |
 | `VITE_DISCORD_CLIENT_ID` | Browser-safe Discord application client id for Activity mode. |
+| `VITE_TURNSTILE_SITE_KEY` | Browser-safe Cloudflare Turnstile site key embedded into the Vite production build. |
 | `MAHJONG_PRODUCTION_URL` | Optional GitHub Actions variable, not a secret. Used by post-deploy smoke tests. Defaults to `https://mahjong-party.youraimates.workers.dev`. |
 
 Do not put real secret values in workflow files or docs. Use only GitHub Secret names such as `${{ secrets.CLOUDFLARE_API_TOKEN }}`.
@@ -49,9 +50,30 @@ Required for authenticated production economy and room routes:
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_JWT_SECRET
+TURNSTILE_SECRET_KEY
 ```
 
-`SUPABASE_URL` is the project URL. `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, and `DISCORD_CLIENT_SECRET` are server-only secrets and must never be copied into a `VITE_` variable or GitHub Actions log.
+`SUPABASE_URL` is the project URL. `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `TURNSTILE_SECRET_KEY`, and `DISCORD_CLIENT_SECRET` are server-only secrets and must never be copied into a `VITE_` variable or GitHub Actions log.
+
+Set and verify the Turnstile secret without writing it into a tracked file:
+
+```powershell
+npx wrangler secret put TURNSTILE_SECRET_KEY --name mahjong-party
+npx wrangler secret list --name mahjong-party
+```
+
+The browser receives only `VITE_TURNSTILE_SITE_KEY`. Room creation and economy claims are verified directly by the Worker using `TURNSTILE_SECRET_KEY`.
+
+## Supabase Turnstile Protection
+
+Magic-link CAPTCHA verification is completed by Supabase Auth, so configure it separately in the Supabase dashboard:
+
+1. Open Authentication, then Bot and Abuse Protection.
+2. Enable CAPTCHA and select Cloudflare Turnstile.
+3. Enter the same private Turnstile secret stored in Cloudflare as `TURNSTILE_SECRET_KEY`.
+4. Save and test one production magic-link request.
+
+The web app passes the Turnstile proof as Supabase's `captchaToken`. Without the dashboard setting, the UI is gated but direct Supabase Auth requests are not protected by Turnstile.
 
 Required for Discord OAuth token exchange:
 

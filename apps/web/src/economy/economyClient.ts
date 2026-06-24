@@ -65,16 +65,33 @@ export function buyCatalogItem(
   return request<BuyResponse>(apiBase, "/api/economy/shop/buy", userId, { userId, itemId }, fetchImpl);
 }
 
-export function claimDailyReward(apiBase: string, userId: string, fetchImpl: FetchLike = fetch): Promise<DailyClaimResponse> {
-  return request<DailyClaimResponse>(apiBase, "/api/economy/daily/claim", userId, { userId }, fetchImpl);
+export function claimDailyReward(
+  apiBase: string,
+  userId: string,
+  turnstileToken: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<DailyClaimResponse> {
+  return request<DailyClaimResponse>(
+    apiBase,
+    "/api/economy/daily/claim",
+    userId,
+    { userId },
+    fetchImpl,
+    turnstileToken,
+  );
 }
 
 export function rewardAd(apiBase: string, userId: string, fetchImpl: FetchLike = fetch): Promise<RewardAdResponse> {
   return request<RewardAdResponse>(apiBase, "/api/economy/ad/reward", userId, { userId }, fetchImpl);
 }
 
-export function spinWheel(apiBase: string, userId: string, fetchImpl: FetchLike = fetch): Promise<SpinWheelResponse> {
-  return request<SpinWheelResponse>(apiBase, "/api/economy/spin", userId, { userId }, fetchImpl);
+export function spinWheel(
+  apiBase: string,
+  userId: string,
+  turnstileToken: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<SpinWheelResponse> {
+  return request<SpinWheelResponse>(apiBase, "/api/economy/spin", userId, { userId }, fetchImpl, turnstileToken);
 }
 
 export async function getDailyMissions(apiBase: string, userId: string, fetchImpl: FetchLike = fetch): Promise<DailyMission[]> {
@@ -95,9 +112,17 @@ export function claimMission(
   apiBase: string,
   userId: string,
   missionId: string,
+  turnstileToken: string,
   fetchImpl: FetchLike = fetch,
 ): Promise<MissionClaimResponse> {
-  return request<MissionClaimResponse>(apiBase, "/api/economy/daily/missions/claim", userId, { userId, missionId }, fetchImpl);
+  return request<MissionClaimResponse>(
+    apiBase,
+    "/api/economy/daily/missions/claim",
+    userId,
+    { userId, missionId },
+    fetchImpl,
+    turnstileToken,
+  );
 }
 
 export function buyIn(
@@ -115,6 +140,7 @@ async function request<T>(
   userId: string | null,
   body: unknown,
   fetchImpl: FetchLike,
+  turnstileToken?: string,
 ): Promise<T> {
   const headers = new Headers();
   if (body !== undefined) {
@@ -125,6 +151,9 @@ async function request<T>(
   }
   for (const [key, value] of Object.entries(authHeaders())) {
     headers.set(key, value);
+  }
+  if (turnstileToken !== undefined) {
+    headers.set("x-turnstile-token", turnstileToken);
   }
 
   const response = await fetchImpl(apiUrl(apiBase, path), {

@@ -9,6 +9,7 @@ import { AuthError, parseBearer, verifySupabaseJwt } from "../../../server/src/a
 import { applyDisconnectGrace, parseSocketMessage } from "../../../server/src/room-realtime";
 import { markConnected, markDisconnected, nextAlarmAt, type DisconnectMap } from "../../../server/src/disconnect-tracker";
 import { discordRoomCode, generateRoomCode, normalizeRoomCode } from "./room-code";
+import { verifyTurnstileToken } from "./turnstile";
 import { bankrollReserveFor, type LanRoomSnapshot, type Seat, type TableConfig } from "@mahjong/shared-types";
 
 /** Grace window before a disconnected human seat is converted to a bot. */
@@ -41,6 +42,7 @@ export interface Env {
   SUPABASE_JWT_SECRET?: string;
   /** "1" allows x-user-id / body.userId identity. ONLY for local dev / tests. Ignored when a JWT secret is set. */
   DEV_AUTH_BYPASS?: string;
+  TURNSTILE_SECRET_KEY?: string;
   DISCORD_CLIENT_SECRET?: string;
   RATE_LIMIT_DISABLED?: string;
 }
@@ -82,12 +84,18 @@ export default {
         roomRuntime: "durable-object",
         authMode: authModeFor(env),
         economyMode: economyModeFor(env),
+        turnstileMode: turnstileModeFor(env),
       });
     }
 
     const limited = rateLimitResponseFor(request, env);
     if (limited) {
       return limited;
+    }
+
+    const turnstileRejection = await turnstileResponseFor(request, env);
+    if (turnstileRejection) {
+      return turnstileRejection;
     }
 
     if (request.method === "POST" && url.pathname === "/api/analytics/events") {
@@ -654,6 +662,54 @@ async function authenticateWebSocket(url: URL, env: AuthEnv): Promise<string> {
 function authModeFor(env: Env): "jwt" | "dev-bypass" | "locked" {
   if (env.SUPABASE_JWT_SECRET) {
     return "jwt";
+  }
+  return env.DEV_AUTH_BYPASS === "1" ? "dev-bypass" : "locked";
+}
+
+type TurnstileAction = "room_create" | "economy_claim";
+
+function turnstileActionFor(method: string, pathname: string): TurnstileAction | null {
+  if (method !== "POST") {
+    return null;
+  }
+  if (pathname === "/api/rooms" || pathname === "/api/discord/rooms") {
+    return "room_create";
+  }
+  if (
+    pathname === "/api/economy/daily/claim" ||
+    pathname === "/api/economy/spin" ||
+    pathname === "/api/economy/daily/missions/claim"
+  ) {
+    return "economy_claim";
+  }
+  return null;
+}
+
+async function turnstileResponseFor(request: Request, env: Env): Promise<Response | null> {
+  const action = turnstileActionFor(request.method, new URL(request.url).pathname);
+  if (!action) {
+    return null;
+  }
+
+  const secret = env.TURNSTILE_SECRET_KEY?.trim();
+  if (!secret) {
+    return env.DEV_AUTH_BYPASS === "1"
+      ? null
+      : json({ error: "Turnstile is not configured" }, 503);
+  }
+
+  const result = await verifyTurnstileToken({
+    secret,
+    token: request.headers.get("x-turnstile-token") ?? "",
+    expectedAction: action,
+    remoteIp: request.headers.get("cf-connecting-ip") ?? undefined,
+  });
+  return result.success ? null : json({ error: "Turnstile verification failed" }, 403);
+}
+
+function turnstileModeFor(env: Env): "configured" | "dev-bypass" | "locked" {
+  if (env.TURNSTILE_SECRET_KEY?.trim()) {
+    return "configured";
   }
   return env.DEV_AUTH_BYPASS === "1" ? "dev-bypass" : "locked";
 }

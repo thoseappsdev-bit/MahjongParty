@@ -279,6 +279,22 @@
   color: #ff9a8c;
 }
 
+.turnstile-gate {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.turnstile-gate .cf-turnstile {
+  flex: 0 0 150px;
+  max-width: 100%;
+}
+
+.turnstile-gate-account {
+  justify-content: flex-start;
+}
+
 .daily-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1403,6 +1419,10 @@
 
   .account-status {
     justify-self: start;
+  }
+
+  .turnstile-gate {
+    justify-content: flex-start;
   }
 
   .friend-room-grid > .mp-table-card,

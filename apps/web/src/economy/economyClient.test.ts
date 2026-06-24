@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buyIn, claimMission, getDailyMissions, getWallet, recordMissionProgress, rewardAd, spinWheel } from "./economyClient";
+import { buyIn, claimDailyReward, claimMission, getDailyMissions, getWallet, recordMissionProgress, rewardAd, spinWheel } from "./economyClient";
 
 describe("economy client", () => {
   it("loads a wallet through the same-origin economy API", async () => {
@@ -38,16 +38,39 @@ describe("economy client", () => {
   });
 
   it("spins the lucky wheel through the backend", async () => {
-    const result = await spinWheel("", "11111111-1111-4111-8111-111111111111", async () =>
-      jsonResponse({
+    const calls: Array<string | null> = [];
+    const result = await spinWheel("", "11111111-1111-4111-8111-111111111111", "spin-token", async (_input, init) => {
+      calls.push(new Headers(init?.headers).get("x-turnstile-token"));
+      return jsonResponse({
         wallet: { coins: 0, gems: 8 },
         reward: { type: "gems", amount: 8 },
         oddsShownAt: "2026-06-17T00:00:00.000Z",
-      }),
-    );
+      });
+    });
 
     expect(result.reward).toEqual({ type: "gems", amount: 8 });
     expect(result.wallet).toEqual({ coins: 0, gems: 8 });
+    expect(calls).toEqual(["spin-token"]);
+  });
+
+  it("sends the Turnstile token when claiming the daily reward", async () => {
+    const calls: Array<string | null> = [];
+    await claimDailyReward("", "11111111-1111-4111-8111-111111111111", "daily-token", async (_input, init) => {
+      calls.push(new Headers(init?.headers).get("x-turnstile-token"));
+      return jsonResponse({ wallet: { coins: 100, gems: 0 }, reward: { type: "coins", amount: 100 }, streak: 1 });
+    });
+
+    expect(calls).toEqual(["daily-token"]);
+  });
+
+  it("does not add a Turnstile header to unprotected economy requests", async () => {
+    const calls: Array<string | null> = [];
+    await rewardAd("", "11111111-1111-4111-8111-111111111111", async (_input, init) => {
+      calls.push(new Headers(init?.headers).get("x-turnstile-token"));
+      return jsonResponse({ wallet: { coins: 220, gems: 0 }, reward: { type: "coins", amount: 220 } });
+    });
+
+    expect(calls).toEqual([null]);
   });
   it("loads, records, and claims daily missions through the backend", async () => {
     const calls: string[] = [];
@@ -63,8 +86,8 @@ describe("economy client", () => {
       return jsonResponse({ missions });
     });
 
-    const claimed = await claimMission("", "11111111-1111-4111-8111-111111111111", "play-hand", async (input, init) => {
-      calls.push(`${init?.method ?? "GET"} ${String(input)} ${String(init?.body)}`);
+    const claimed = await claimMission("", "11111111-1111-4111-8111-111111111111", "play-hand", "mission-token", async (input, init) => {
+      calls.push(`${init?.method ?? "GET"} ${String(input)} ${String(init?.body)} ${new Headers(init?.headers).get("x-turnstile-token")}`);
       return jsonResponse({
         wallet: { coins: 300, gems: 0 },
         mission: { ...missions[0], claimed: true },
@@ -77,7 +100,7 @@ describe("economy client", () => {
     expect(calls).toEqual([
       "GET /api/economy/daily/missions",
       'POST /api/economy/daily/missions/progress {"userId":"11111111-1111-4111-8111-111111111111","event":{"type":"claim-melds","count":2}}',
-      'POST /api/economy/daily/missions/claim {"userId":"11111111-1111-4111-8111-111111111111","missionId":"play-hand"}',
+      'POST /api/economy/daily/missions/claim {"userId":"11111111-1111-4111-8111-111111111111","missionId":"play-hand"} mission-token',
     ]);
   });
 });

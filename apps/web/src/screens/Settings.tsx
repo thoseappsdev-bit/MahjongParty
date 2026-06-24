@@ -3,8 +3,10 @@ import { localeName, t } from "@mahjong/i18n";
 import type { LocaleCode } from "@mahjong/shared-types";
 import { useState } from "react";
 import type { AuthProfile } from "../auth/initSupabaseAuth";
+import { TurnstileWidget } from "../turnstile/TurnstileWidget";
 
 const locales: LocaleCode[] = ["en", "zh", "id"];
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? "";
 
 export interface SettingsAccountState {
   status: "checking" | "guest" | "signed-in" | "offline" | "error";
@@ -25,7 +27,7 @@ export function Settings({
   locale: LocaleCode;
   onNewGuest: () => Promise<{ ok: boolean; error?: string }>;
   onLocaleChange: (locale: LocaleCode) => void;
-  onSendMagicLink: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  onSendMagicLink: (email: string, captchaToken: string) => Promise<{ ok: boolean; error?: string }>;
   onSignOut: () => Promise<{ ok: boolean; error?: string }>;
 }) {
   return (
@@ -75,12 +77,30 @@ function AccountSettings({
   account: SettingsAccountState;
   locale: LocaleCode;
   onNewGuest: () => Promise<{ ok: boolean; error?: string }>;
-  onSendMagicLink: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  onSendMagicLink: (email: string, captchaToken: string) => Promise<{ ok: boolean; error?: string }>;
   onSignOut: () => Promise<{ ok: boolean; error?: string }>;
 }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState<"email" | "guest" | "signout" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const magicLinkBlocked = Boolean(turnstileSiteKey && !captchaToken);
+
+  function consumeCaptchaToken(): string | null {
+    if (magicLinkBlocked) return null;
+    const token = captchaToken ?? "";
+    setCaptchaToken(null);
+    setTurnstileResetKey((key) => key + 1);
+    return token;
+  }
+
+  function sendMagicLink() {
+    const token = consumeCaptchaToken();
+    if (token !== null) {
+      void runAction("email", () => onSendMagicLink(email, token));
+    }
+  }
 
   async function runAction(action: "email" | "guest" | "signout", callback: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(action);
@@ -138,12 +158,24 @@ function AccountSettings({
         />
         <Button
           tone="primary"
-          onClick={() => runAction("email", () => onSendMagicLink(email))}
-          disabled={busy !== null}
+          onClick={sendMagicLink}
+          disabled={busy !== null || magicLinkBlocked}
         >
           {busy === "email" ? t(locale, "settings.sending") : t(locale, "settings.sendMagicLink")}
         </Button>
       </div>
+
+      {turnstileSiteKey ? (
+        <div className="turnstile-gate turnstile-gate-account">
+          <TurnstileWidget
+            action="magic_link"
+            ariaLabel="Verify email sign-in"
+            onToken={setCaptchaToken}
+            resetKey={turnstileResetKey}
+            siteKey={turnstileSiteKey}
+          />
+        </div>
+      ) : null}
 
       <div className="account-actions">
         <Button tone="secondary" onClick={() => runAction("guest", onNewGuest)} disabled={busy !== null}>
