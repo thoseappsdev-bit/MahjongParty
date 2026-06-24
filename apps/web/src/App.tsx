@@ -73,8 +73,8 @@ import {
   type LanSession,
 } from "./lan/lanClient";
 import { connectRoomSocket, type RoomSocket } from "./lan/roomSocket";
+import { authRedirectUrl } from "./auth/authRedirect";
 import {
-  authRedirectUrl,
   initSupabaseAuth,
   restartSupabaseGuest,
   sendSupabaseMagicLink,
@@ -1017,6 +1017,8 @@ export function App() {
     </div>
   );
 }
+
+
 
 
 
