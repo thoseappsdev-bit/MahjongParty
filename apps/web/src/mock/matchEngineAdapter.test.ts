@@ -88,6 +88,61 @@ describe("match engine adapter", () => {
       deltas: [0, 0, 0, 0],
     });
   });
+  it("awards friendly exhaustive draws to the unique lowest-shanten leader", () => {
+    const match = createMatchState("adapter-progress-draw");
+    const complete = {
+      ...match,
+      phase: "complete" as const,
+      winnerSeat: null,
+      players: match.players.map((player, index) =>
+        index === 1
+          ? { ...player, hand: ["m1", "p3", "s5", "we", "dr", "dg"], melds: [] }
+          : index === 2
+            ? {
+                ...player,
+                hand: ["p2", "p3", "p4", "s5", "s6", "s7", "we", "we", "dr", "dr"],
+                melds: ["CHOW m1 m2 m3"],
+              }
+            : { ...player, hand: ["m1", "p1", "s1", "we", "dr"], melds: [] },
+      ) as typeof match.players,
+    };
+
+    expect(matchStateToResult(complete, "friendly")).toMatchObject({
+      winnerName: "Chen Bot",
+      deltas: [-1000, -1000, 3000, -1000],
+      fanLines: [{ id: "progress-tiebreak", nameKey: "fan.progressTiebreak", fan: 0 }],
+    });
+  });
+
+  it("keeps friendly exhaustive draws neutral when lowest shanten is tied", () => {
+    const match = createMatchState("adapter-progress-tie-draw");
+    const complete = {
+      ...match,
+      phase: "complete" as const,
+      winnerSeat: null,
+      players: match.players.map((player, index) =>
+        index === 0
+          ? {
+              ...player,
+              hand: ["m1", "m2", "m3", "m4", "m5", "m6", "p2", "p3", "p4", "s7", "s8", "we", "we"],
+              melds: [],
+            }
+          : index === 2
+            ? {
+                ...player,
+                hand: ["p2", "p3", "p4", "s5", "s6", "s7", "we", "we", "dr", "dr"],
+                melds: ["CHOW m1 m2 m3"],
+              }
+            : { ...player, hand: ["m1", "p1", "s1", "we", "dr"], melds: [] },
+      ) as typeof match.players,
+    };
+
+    expect(matchStateToResult(complete, "friendly")).toMatchObject({
+      winnerName: "Wall Draw",
+      deltas: [0, 0, 0, 0],
+      fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
+    });
+  });
 
   it("keeps a coin-table exhaustion neutral even with a unique least-tile leader", () => {
     const match = createMatchState("adapter-coin-draw");
@@ -106,3 +161,4 @@ describe("match engine adapter", () => {
     });
   });
 });
+

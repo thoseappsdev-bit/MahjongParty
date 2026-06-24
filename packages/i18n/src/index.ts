@@ -179,7 +179,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.baseWin": "Basic Win",
     "fan.practiceBasic": "Practice Basic Hand",
     "fan.wallDraw": "Wall Draw",
-    "fan.progressTiebreak": "Progress Tiebreak",
+    "fan.progressTiebreak": "Casual progress tiebreak: closest valid hand when the wall was exhausted.",
   },
   zh: {
     "nav.lobby": "大厅",
@@ -359,7 +359,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.baseWin": "基本和牌",
     "fan.practiceBasic": "练习基础和牌",
     "fan.wallDraw": "牌墙摸牌",
-    "fan.progressTiebreak": "进度平分决胜",
+    "fan.progressTiebreak": "\u4f11\u95f2\u8fdb\u5ea6\u51b3\u80dc\uff1a\u724c\u5899\u6478\u5b8c\u65f6\uff0c\u6700\u63a5\u8fd1\u6709\u6548\u548c\u724c\u7684\u73a9\u5bb6\u83b7\u80dc\u3002",
   },  id: {
     "nav.lobby": "Lobi",
     "nav.tables": "Meja",
@@ -538,7 +538,7 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.baseWin": "Menang Dasar",
     "fan.practiceBasic": "Hand Dasar Latihan",
     "fan.wallDraw": "Wall Draw",
-    "fan.progressTiebreak": "Progress Tiebreak",
+    "fan.progressTiebreak": "Penentu progres santai: tangan valid terdekat saat dinding habis.",
   },
 };
 
@@ -558,3 +558,5 @@ export function formatT(locale: LocaleCode, key: string, values: Record<string, 
 export function localeName(locale: LocaleCode): string {
   return { en: "English", zh: "中文", id: "Indonesia" }[locale];
 }
+
+

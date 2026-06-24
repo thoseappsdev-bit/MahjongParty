@@ -1,5 +1,5 @@
-import { evaluateWinningHand, scoreOldHongKongFan, type MatchState } from "@mahjong/game-core";
-import type { GameMode, LegalAction, MatchResult, MatchView, TableType } from "@mahjong/shared-types";
+import { evaluateHandProgress, evaluateWinningHand, scoreOldHongKongFan, type MatchState } from "@mahjong/game-core";
+import type { GameMode, LegalAction, MatchResult, MatchView, Seat, TableType } from "@mahjong/shared-types";
 
 const winds = ["E", "S", "W", "N"] as const;
 
@@ -65,9 +65,7 @@ function wallDrawResult(): MatchResult {
   };
 }
 function progressResult(state: MatchState): MatchResult {
-  const counts = state.players.map((player) => player.hand.length);
-  const fewestTiles = Math.min(...counts);
-  const leadingSeats = counts.flatMap((count, index) => (count === fewestTiles ? [index] : []));
+  const leadingSeats = lowestShantenSeats(state.players);
 
   if (leadingSeats.length !== 1) {
     return {
@@ -76,7 +74,7 @@ function progressResult(state: MatchState): MatchResult {
       totalFan: 0,
       fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
       deltas: [0, 0, 0, 0],
-      policyCopy: "The wall was exhausted with a tied least-tile count. No winner this hand.",
+      policyCopy: "The wall was exhausted with tied hand progress. No winner this hand.",
     };
   }
 
@@ -87,8 +85,14 @@ function progressResult(state: MatchState): MatchResult {
     totalFan: 0,
     fanLines: [{ id: "progress-tiebreak", nameKey: "fan.progressTiebreak", fan: 0 }],
     deltas: state.players.map((player) => (player.seat === winnerSeat ? 3000 : -1000)) as MatchResult["deltas"],
-    policyCopy: "Casual fallback: the wall was exhausted, so the player with the fewest tiles left wins this friendly hand.",
+    policyCopy: "Casual progress tiebreak: closest valid hand when the wall was exhausted.",
   };
+}
+
+function lowestShantenSeats(players: MatchState["players"]): Seat[] {
+  const scores = players.map((player) => evaluateHandProgress(nonBonusTiles(player.hand), player.melds).shanten);
+  const lowest = Math.min(...scores);
+  return scores.flatMap((score, index) => (score === lowest ? [index as Seat] : []));
 }
 
 function legalActionsForLocalPlayer(state: MatchState): LegalAction[] {
@@ -131,4 +135,10 @@ function claimPromptForLocalPlayer(state: MatchState): string | null {
   return `${state.players[state.claimWindow.discard.seat].name} discarded ${state.claimWindow.discard.tile.toUpperCase()}. ${localOffers
     .map((offer) => offer.action.toUpperCase())
     .join(" or ")} is available.`;
+}
+
+
+
+function nonBonusTiles(hand: readonly string[]): string[] {
+  return hand.filter((tile) => !/^[ft]\d$/i.test(tile));
 }

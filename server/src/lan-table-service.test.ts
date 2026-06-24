@@ -248,7 +248,7 @@ describe("LAN table service", () => {
       winnerName: "Wall Draw",
       totalFan: 0,
       deltas: [0, 0, 0, 0],
-      policyCopy: "The wall was exhausted with a tied least-tile count. No winner this hand.",
+      policyCopy: "The wall was exhausted with tied hand progress. No winner this hand.",
     });
   });
 
@@ -390,24 +390,65 @@ describe("LAN table service", () => {
     ).toBeNull();
   });
 
-  it("awards friendly exhausted hands to the unique least-tile leader", () => {
+  it("awards friendly exhausted hands to the unique lowest-shanten leader", () => {
     const match = createMatchState("friendly-progress-lan");
     const exhausted = {
       ...match,
       phase: "complete" as const,
       winnerSeat: null,
       players: match.players.map((player, index) =>
-        index === 1 ? { ...player, hand: player.hand.slice(0, 6) } : player,
+        index === 1
+          ? { ...player, hand: ["m1", "p3", "s5", "we", "dr", "dg"], melds: [] }
+          : index === 2
+            ? {
+                ...player,
+                hand: ["p2", "p3", "p4", "s5", "s6", "s7", "we", "we", "dr", "dr"],
+                melds: ["CHOW m1 m2 m3"],
+              }
+            : { ...player, hand: ["m1", "p1", "s1", "we", "dr"], melds: [] },
       ) as typeof match.players,
       wall: [],
       eventLog: [...match.eventLog, "The wall is exhausted."],
     };
 
     expect(matchResultFor(exhausted, config)).toMatchObject({
-      winnerName: "Bo Bot",
+      winnerName: "Chen Bot",
       totalFan: 0,
-      deltas: [-1000, 3000, -1000, -1000],
+      deltas: [-1000, -1000, 3000, -1000],
       fanLines: [{ id: "progress-tiebreak", nameKey: "fan.progressTiebreak", fan: 0 }],
+    });
+  });
+
+  it("keeps friendly exhausted hands neutral when lowest shanten is tied", () => {
+    const match = createMatchState("friendly-progress-tie-lan");
+    const exhausted = {
+      ...match,
+      phase: "complete" as const,
+      winnerSeat: null,
+      players: match.players.map((player, index) =>
+        index === 0
+          ? {
+              ...player,
+              hand: ["m1", "m2", "m3", "m4", "m5", "m6", "p2", "p3", "p4", "s7", "s8", "we", "we"],
+              melds: [],
+            }
+          : index === 2
+            ? {
+                ...player,
+                hand: ["p2", "p3", "p4", "s5", "s6", "s7", "we", "we", "dr", "dr"],
+                melds: ["CHOW m1 m2 m3"],
+              }
+            : { ...player, hand: ["m1", "p1", "s1", "we", "dr"], melds: [] },
+      ) as typeof match.players,
+      wall: [],
+      eventLog: [...match.eventLog, "The wall is exhausted."],
+    };
+
+    expect(matchResultFor(exhausted, config)).toMatchObject({
+      winnerName: "Wall Draw",
+      totalFan: 0,
+      deltas: [0, 0, 0, 0],
+      fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
     });
   });
 
@@ -431,3 +472,5 @@ describe("LAN table service", () => {
     });
   });
 });
+
+

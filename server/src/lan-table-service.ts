@@ -1,5 +1,6 @@
 import {
   createMatchState,
+  evaluateHandProgress,
   evaluateWinningHand,
   resolveMatchAction,
   resolveNextBotTurn,
@@ -434,12 +435,10 @@ function wallDrawMatchResult(policyCopy = "The wall was exhausted. No winner thi
 }
 
 function exhaustedProgressResult(match: MatchState): MatchResult {
-  const counts = match.players.map((player) => player.hand.length);
-  const fewestTiles = Math.min(...counts);
-  const leadingSeats = counts.flatMap((count, index) => (count === fewestTiles ? [index as Seat] : []));
+  const leadingSeats = lowestShantenSeats(match.players);
 
   if (leadingSeats.length !== 1) {
-    return wallDrawMatchResult("The wall was exhausted with a tied least-tile count. No winner this hand.");
+    return wallDrawMatchResult("The wall was exhausted with tied hand progress. No winner this hand.");
   }
 
   const winnerSeat = leadingSeats[0];
@@ -449,8 +448,14 @@ function exhaustedProgressResult(match: MatchState): MatchResult {
     totalFan: 0,
     fanLines: [{ id: "progress-tiebreak", nameKey: "fan.progressTiebreak", fan: 0 }],
     deltas: match.players.map((player) => (player.seat === winnerSeat ? 3000 : -1000)) as MatchResult["deltas"],
-    policyCopy: "Casual fallback: the wall was exhausted, so the player with the fewest tiles left wins this friendly hand.",
+    policyCopy: "Casual progress tiebreak: closest valid hand when the wall was exhausted.",
   };
+}
+
+function lowestShantenSeats(players: MatchState["players"]): Seat[] {
+  const scores = players.map((player) => evaluateHandProgress(player.hand, player.melds).shanten);
+  const lowest = Math.min(...scores);
+  return scores.flatMap((score, index) => (score === lowest ? [index as Seat] : []));
 }
 export function coinSettlementDeltasFor(
   room: Pick<LanRoomSnapshot, "config" | "phase" | "result" | "seats">,
@@ -652,3 +657,5 @@ function cloneRoomState(room: LanRoomState): LanRoomState {
     updatedAt: room.updatedAt,
   };
 }
+
+
