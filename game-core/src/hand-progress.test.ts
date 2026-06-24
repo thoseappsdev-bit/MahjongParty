@@ -45,7 +45,25 @@ describe("hand progress", () => {
     ).toThrow(/more than four copies/i);
   });
 
+
+  it("keeps shanten stable under tile and meld ordering", () => {
+    const closed = ["we", "m6", "p4", "m1", "s8", "m5", "p3", "m2", "we", "p2", "s7", "m3", "m4"];
+    const closedReordered = ["m1", "m2", "m3", "m4", "m5", "m6", "p2", "p3", "p4", "s7", "s8", "we", "we"];
+
+    expect(evaluateHandProgress(closed)).toEqual(evaluateHandProgress(closedReordered));
+
+    const oneOpen = evaluateHandProgress(["p2", "p3", "p4", "s5", "s6", "s7", "we", "we", "dr", "dr"], ["CHOW m1 m2 m3"]);
+    const oneOpenReordered = evaluateHandProgress(["dr", "p4", "we", "s7", "p3", "dr", "s6", "p2", "we", "s5"], ["chow m3 m2 m1"]);
+
+    expect(oneOpenReordered).toEqual(oneOpen);
+
+    const twoOpen = evaluateHandProgress(["s5", "s6", "s7", "we", "we", "dr", "dr"], ["CHOW m1 m2 m3", "PUNG p4 p4 p4"]);
+    const twoOpenReordered = evaluateHandProgress(["dr", "we", "s7", "dr", "s6", "we", "s5"], ["pung p4 p4 p4", "chow m2 m1 m3"]);
+
+    expect(twoOpenReordered).toEqual(twoOpen);
+  });
   it("re-exports the evaluator from the package entrypoint", () => {
     expect(evaluateHandProgressFromIndex).toBe(evaluateHandProgress);
   });
 });
+
