@@ -1,7 +1,9 @@
 import type { MatchView } from "@mahjong/shared-types";
 export * from "./action-log";
+export * from "./hand-progress";
 export * from "./match-engine";
 export * from "./practice-engine";
+export * as riichi from "./riichi";
 export * from "./scoring";
 
 export function createPrototypeMatch(view: MatchView): MatchView {
