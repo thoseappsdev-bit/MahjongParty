@@ -74,6 +74,7 @@ import {
 } from "./lan/lanClient";
 import { connectRoomSocket, type RoomSocket } from "./lan/roomSocket";
 import {
+  authRedirectUrl,
   initSupabaseAuth,
   restartSupabaseGuest,
   sendSupabaseMagicLink,
@@ -452,7 +453,7 @@ export function App() {
   }
 
   async function handleSendMagicLink(email: string, captchaToken: string): Promise<{ ok: boolean; error?: string }> {
-    const redirectTo = typeof window === "undefined" ? undefined : window.location.href;
+    const redirectTo = typeof window === "undefined" ? undefined : authRedirectUrl(window.location);
     const result = await sendSupabaseMagicLink(email, redirectTo, captchaToken);
     if (result.ok) {
       showToast(t(locale, "settings.magicLinkSent"));

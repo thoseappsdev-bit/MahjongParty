@@ -75,6 +75,11 @@ Magic-link CAPTCHA verification is completed by Supabase Auth, so configure it s
 
 The web app passes the Turnstile proof as Supabase's `captchaToken`. Without the dashboard setting, the UI is gated but direct Supabase Auth requests are not protected by Turnstile.
 
+For production auth redirects, set the Supabase Auth Site URL and allowlist exactly to the deployed worker origin:
+
+- Supabase Site URL: `https://mahjong-party.youraimates.workers.dev`
+- Redirect allowlist: `https://mahjong-party.youraimates.workers.dev/**`
+
 Required for Discord OAuth token exchange:
 
 ```text
