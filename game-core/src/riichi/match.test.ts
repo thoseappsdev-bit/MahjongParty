@@ -1,0 +1,151 @@
+import { describe, expect, it } from "vitest";
+import { advanceRiichiRound, finalizeHanchan, settleTenpaiNoten, type RiichiHandResult, type RiichiMatchState } from "./index";
+
+function state(overrides: Partial<RiichiMatchState> = {}): RiichiMatchState {
+  const { players: playerOverrides, context: contextOverrides, ...stateOverrides } = overrides;
+  return {
+    mode: "riichi",
+    phase: "playing",
+    seed: "match-seed",
+    context: {
+      roundWind: "we",
+      handNumber: 1,
+      dealerSeat: 0,
+      honba: 0,
+      riichiSticks: 0,
+      ...(contextOverrides ?? {}),
+    },
+    turnSeat: 0,
+    liveWall: [],
+    deadWall: [],
+    doraIndicators: [],
+    uraDoraIndicators: [],
+    kanDoraIndicators: [],
+    players: [0, 1, 2, 3].map((seat) => ({
+      seat: seat as 0 | 1 | 2 | 3,
+      name: `Seat ${seat}`,
+      avatar: String(seat),
+      hand: [],
+      discards: [],
+      melds: [],
+      points: 30000,
+      riichi: false,
+      doubleRiichi: false,
+      ippatsu: false,
+      furiten: "none",
+      isBot: seat !== 0,
+      ...(playerOverrides?.[seat] ?? {}),
+    })) as RiichiMatchState["players"],
+    claimWindow: null,
+    result: null,
+    eventLog: [],
+    auditLog: [],
+    ...stateOverrides,
+  };
+}
+
+function winResult(overrides: Partial<Extract<RiichiHandResult, { kind: "win" }>> = {}): RiichiHandResult {
+  return {
+    kind: "win",
+    winnerSeat: 1,
+    deltas: [0, 3900, -3900, 0],
+    riichiDeposits: [],
+    ...overrides,
+  };
+}
+
+describe("WRC Riichi match progression", () => {
+  it("settles exhaustive tenpai/noten with exactly 3,000 points in every split", () => {
+    expect(settleTenpaiNoten([])).toEqual([0, 0, 0, 0]);
+    expect(settleTenpaiNoten([0, 1, 2, 3])).toEqual([0, 0, 0, 0]);
+    expect(settleTenpaiNoten([1])).toEqual([-1000, 3000, -1000, -1000]);
+    expect(settleTenpaiNoten([0, 2])).toEqual([1500, -1500, 1500, -1500]);
+    expect(settleTenpaiNoten([0, 1, 3])).toEqual([1000, 1000, -3000, 1000]);
+  });
+
+  it("continues dealer on exhaustive draw when dealer is tenpai and keeps hand deltas zero before riichi deposits", () => {
+    const next = advanceRiichiRound(
+      state({ context: { roundWind: "we", handNumber: 2, dealerSeat: 1, honba: 0, riichiSticks: 0 } }),
+      { kind: "exhaustive-draw", tenpaiSeats: [1], riichiDeposits: [0, 3] },
+    );
+
+    expect(next.context).toMatchObject({ roundWind: "we", handNumber: 2, dealerSeat: 1, honba: 1, riichiSticks: 2 });
+    expect(next.players.map((player) => player.points)).toEqual([28000, 33000, 29000, 28000]);
+    expect(next.phase).toBe("playing");
+  });
+
+  it("rotates dealer on exhaustive draw when dealer is not tenpai and enters South after East 4", () => {
+    const next = advanceRiichiRound(
+      state({ context: { roundWind: "we", handNumber: 4, dealerSeat: 3, honba: 2, riichiSticks: 1 } }),
+      { kind: "exhaustive-draw", tenpaiSeats: [0, 2], riichiDeposits: [] },
+    );
+
+    expect(next.context).toMatchObject({ roundWind: "ws", handNumber: 1, dealerSeat: 0, honba: 3, riichiSticks: 1 });
+    expect(next.players.map((player) => player.points)).toEqual([31500, 28500, 31500, 28500]);
+  });
+
+  it("rotates after non-dealer win, resets honba, and awards table riichi sticks", () => {
+    const next = advanceRiichiRound(
+      state({ context: { roundWind: "we", handNumber: 1, dealerSeat: 0, honba: 2, riichiSticks: 2 } }),
+      winResult({ winnerSeat: 2, deltas: [0, 6000, 7000, -13000], riichiDeposits: [1] }),
+    );
+
+    expect(next.context).toMatchObject({ roundWind: "we", handNumber: 2, dealerSeat: 1, honba: 0, riichiSticks: 1 });
+    expect(next.players.map((player) => player.points)).toEqual([30000, 35000, 39000, 17000]);
+  });
+
+  it("continues on dealer win and accumulates honba while clearing won riichi sticks", () => {
+    const next = advanceRiichiRound(
+      state({ context: { roundWind: "ws", handNumber: 3, dealerSeat: 2, honba: 1, riichiSticks: 3 } }),
+      winResult({ winnerSeat: 2, deltas: [-4000, -4000, 15000, -4000], riichiDeposits: [] }),
+    );
+
+    expect(next.context).toMatchObject({ roundWind: "ws", handNumber: 3, dealerSeat: 2, honba: 2, riichiSticks: 0 });
+    expect(next.players.map((player) => player.points)).toEqual([26000, 26000, 45000, 26000]);
+  });
+
+  it("finalizes after South 4 non-dealer rotation and prevents bankruptcy early stops", () => {
+    const next = advanceRiichiRound(
+      state({
+        context: { roundWind: "ws", handNumber: 4, dealerSeat: 3, honba: 0, riichiSticks: 0 },
+        players: [
+          { points: 1000 },
+          { points: 42000 },
+          { points: 35000 },
+          { points: 42000 },
+        ] as Partial<RiichiMatchState["players"][number]>[],
+      }),
+      winResult({ winnerSeat: 0, deltas: [12000, -12000, 0, 0], riichiDeposits: [] }),
+    );
+
+    expect(next.phase).toBe("complete");
+    expect(next.players.map((player) => player.points)).toEqual([13000, 30000, 35000, 42000]);
+  });
+
+  it("finalizes standings with +15/+5/-5/-15 uma and splits ties", () => {
+    const standings = finalizeHanchan(
+      state({
+        phase: "complete",
+        players: [
+          { points: 45000, name: "A" },
+          { points: 45000, name: "B" },
+          { points: 30000, name: "C" },
+          { points: 0, name: "D" },
+        ] as Partial<RiichiMatchState["players"][number]>[],
+      }),
+    );
+
+    expect(standings.map((standing) => ({ seat: standing.seat, rank: standing.rank, points: standing.points, uma: standing.uma, total: standing.total }))).toEqual([
+      { seat: 0, rank: 1, points: 45000, uma: 10, total: 25 },
+      { seat: 1, rank: 1, points: 45000, uma: 10, total: 25 },
+      { seat: 2, rank: 3, points: 30000, uma: -5, total: -5 },
+      { seat: 3, rank: 4, points: 0, uma: -15, total: -45 },
+    ]);
+  });
+});
+
+
+
+
+
+
