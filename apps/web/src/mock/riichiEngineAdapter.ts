@@ -50,7 +50,7 @@ export function riichiStateToView(state: RiichiMatchState, tableType: TableType 
     mySeat: 0,
     timerSeconds: state.turnSeat === 0 ? 25 : 8,
     wallCount: state.liveWall.length,
-    claimPrompt: null,
+    claimPrompt: riichiTutorialPrompt(state),
     legalActions: legalActionsForLocalPlayer(state),
     myHand: state.players[0].hand,
     players: state.players.map((player) => ({
@@ -103,7 +103,9 @@ export function riichiStateToResult(state: RiichiMatchState): MatchResult {
       ? score.yaku.map((line) => ({ id: line.id, nameKey: `riichi.yaku.${line.id}`, fan: line.han || line.yakuman * 13 }))
       : [{ id: "riichi-win", nameKey: "fan.practiceBasic", fan: 1 }],
     deltas: handResult.deltas as MatchResult["deltas"],
-    policyCopy: "Riichi hand settlement uses honba, riichi sticks, dealer payments, and yaku scoring.",
+    policyCopy: isRiichiTutorialState(state)
+      ? "Tutorial complete: Tanyao is a yaku because the hand has no 1, 9, or honor tiles. Closed Tsumo is another yaku because Lina drew the winning tile herself with a closed hand."
+      : "Riichi hand settlement uses honba, riichi sticks, dealer payments, and yaku scoring.",
   };
 }
 
@@ -160,7 +162,8 @@ export function resolveRiichiTutorialAction(state: RiichiMatchState, intent: Mat
     return cloneRiichiState(state);
   }
 
-  const discardedTile = riichi.isRiichiTile(intent.tile ?? "") ? (intent.tile as RiichiTile) : (state.players[0].hand[0] ?? "s9");
+  const fallbackDiscard = state.players[0].hand.includes("s9") ? "s9" : (state.players[0].hand[0] ?? "s9");
+  const discardedTile = riichi.isRiichiTile(intent.tile ?? "") ? (intent.tile as RiichiTile) : fallbackDiscard;
   const next = cloneRiichiState(state);
   next.turnSeat = 0;
   next.liveWall = next.liveWall.slice(1);
@@ -169,10 +172,26 @@ export function resolveRiichiTutorialAction(state: RiichiMatchState, intent: Mat
   next.eventLog = [
     ...next.eventLog,
     `Lina discarded ${discardedTile}.`,
-    "Tutorial: Lina drew S5. Tsumo / Win is available because the hand has four groups, a pair, and the Tanyao yaku.",
+    "Tutorial: Lina drew S5. Tsumo / Win is available because the hand has four groups, a pair, Tanyao, and Closed Tsumo.",
   ];
   return next;
 }
+function isRiichiTutorialState(state: RiichiMatchState): boolean {
+  return state.seed.includes("riichi-tutorial");
+}
+
+function riichiTutorialPrompt(state: RiichiMatchState): string | null {
+  if (!isRiichiTutorialState(state) || state.phase !== "playing") {
+    return null;
+  }
+
+  if (canLocalTsumo(state)) {
+    return "Tutorial: You drew S5. This is Tsumo. Your hand has Tanyao and Closed Tsumo, so press Tsumo / Win to finish.";
+  }
+
+  return "Tutorial: discard S9 first. It is isolated, and removing it keeps the hand focused on Tanyao: no 1, 9, or honor tiles.";
+}
+
 function legalActionsForLocalPlayer(state: RiichiMatchState): LegalAction[] {
   if (state.phase === "complete" || state.turnSeat !== 0) return [];
   const actions: LegalAction[] = ["discard"];

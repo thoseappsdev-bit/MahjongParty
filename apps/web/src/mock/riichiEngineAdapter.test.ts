@@ -1,6 +1,13 @@
 import { riichi } from "@mahjong/game-core";
 import { describe, expect, it } from "vitest";
-import { chooseRiichiBotDiscard, createRiichiTutorialState, resolveRiichiTutorialAction, riichiHanchanToResult, riichiStateToResult, riichiStateToView } from "./riichiEngineAdapter";
+import {
+  chooseRiichiBotDiscard,
+  createRiichiTutorialState,
+  resolveRiichiTutorialAction,
+  riichiHanchanToResult,
+  riichiStateToResult,
+  riichiStateToView,
+} from "./riichiEngineAdapter";
 
 describe("riichi engine adapter", () => {
   it("maps Riichi state to the shared match view", () => {
@@ -33,16 +40,39 @@ describe("riichi engine adapter", () => {
 
   it("keeps the Riichi tutorial on the local player after the guided discard", () => {
     const state = createRiichiTutorialState("web-riichi-tutorial");
+    const openingView = riichiStateToView(state);
 
-    expect(riichiStateToView(state).legalActions).toEqual(["discard"]);
+    expect(openingView.legalActions).toEqual(["discard"]);
+    expect(openingView.claimPrompt).toContain("discard S9");
 
     const afterDiscard = resolveRiichiTutorialAction(state, { type: "discard", tile: "s9" });
     const view = riichiStateToView(afterDiscard);
 
     expect(view.turnSeat).toBe(0);
     expect(view.legalActions).toEqual(["win", "discard"]);
-    expect(view.recentEvent).toContain("Tanyao yaku");
+    expect(view.recentEvent).toContain("Closed Tsumo");
+    expect(view.claimPrompt).toContain("press Tsumo / Win");
   });
+
+  it("uses S9 as the guided discard when the action button has no tile", () => {
+    const afterDiscard = resolveRiichiTutorialAction(createRiichiTutorialState("web-riichi-tutorial-button"), { type: "discard" });
+
+    expect(afterDiscard.players[0].discards).toContain("s9");
+    expect(afterDiscard.players[0].hand).not.toContain("s9");
+  });
+
+  it("explains the Riichi tutorial win result after Tsumo", () => {
+    const afterDiscard = resolveRiichiTutorialAction(createRiichiTutorialState("web-riichi-tutorial-result"), { type: "discard" });
+    const completed = resolveRiichiTutorialAction(afterDiscard, { type: "win" });
+    const result = riichiStateToResult(completed);
+
+    expect(completed.phase).toBe("complete");
+    expect(result.winnerName).toBe("Lina");
+    expect(result.policyCopy).toContain("Tanyao is a yaku");
+    expect(result.fanLines.map((line) => line.id)).toContain("tanyao");
+    expect(result.fanLines.map((line) => line.id)).toContain("menzen-tsumo");
+  });
+
   it("chooses a deterministic bot discard", () => {
     const state = riichi.createRiichiMatchState("bot-riichi");
     state.turnSeat = 1;

@@ -777,9 +777,11 @@ export function App() {
       if (nextMatch.phase === "complete") {
         if (tutorialRuleset === "riichi") {
           const finishedResult = riichiStateToResult(nextMatch);
+          commitRiichiState(nextMatch, tableConfig);
           setCurrentResult(finishedResult);
           recordCompletedHandMissions(finishedResult);
-          window.setTimeout(() => setRoute("result"), 500);
+          showToast("Tsumo! Tutorial hand complete.");
+          setRoute("result");
           return;
         }
         settleCompletedRiichiState(nextMatch);

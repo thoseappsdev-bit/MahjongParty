@@ -14,13 +14,14 @@ export function Result({
   onRematch: () => void;
 }) {
   const isDraw = result.fanLines.some((line) => line.id === "wall-draw");
+  const scoreUnit = result.fanLines.some((line) => line.nameKey.startsWith("riichi.")) ? "han" : "fan";
 
   return (
     <div className="screen">
       <div className="screen-heading">
         <div>
           <h1>{isDraw ? result.winnerName : formatT(locale, "result.wins", { name: result.winnerName })}</h1>
-          <p>{isDraw ? result.policyCopy : `${result.totalFan} fan - ${result.policyCopy}`}</p>
+          <p>{isDraw ? result.policyCopy : `${result.totalFan} ${scoreUnit} - ${result.policyCopy}`}</p>
         </div>
         <div className="heading-actions">
           <Button tone="ghost" onClick={onHome}>
