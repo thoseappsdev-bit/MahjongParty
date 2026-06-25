@@ -7,6 +7,7 @@ import {
   riichiHanchanToResult,
   riichiStateToResult,
   riichiStateToView,
+  sortRiichiHandForView,
 } from "./riichiEngineAdapter";
 
 describe("riichi engine adapter", () => {
@@ -18,6 +19,20 @@ describe("riichi engine adapter", () => {
     expect(view.wallCount).toBe(state.liveWall.length);
     expect(view.myHand).toHaveLength(14);
     expect(view.legalActions).toContain("discard");
+  });
+
+  it("sorts Riichi hands for display without mutating engine order", () => {
+    const hand: riichi.RiichiTile[] = ["s9", "m2", "dr", "p1", "m1", "we", "s1", "p9"];
+
+    expect(sortRiichiHandForView(hand)).toEqual(["m1", "m2", "p1", "p9", "s1", "s9", "we", "dr"]);
+    expect(hand).toEqual(["s9", "m2", "dr", "p1", "m1", "we", "s1", "p9"]);
+  });
+
+  it("shows the local Riichi hand sorted in the shared view", () => {
+    const state = riichi.createRiichiMatchState("web-riichi-sorted-view");
+    state.players[0].hand = ["s9", "m2", "dr", "p1", "m1", "we", "s1", "p9"];
+
+    expect(riichiStateToView(state).myHand).toEqual(["m1", "m2", "p1", "p9", "s1", "s9", "we", "dr"]);
   });
 
   it("does not offer Win for an invalid Riichi shape even when yaku-like tiles are present", () => {

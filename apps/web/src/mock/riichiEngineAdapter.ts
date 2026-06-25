@@ -2,7 +2,7 @@ import { riichi } from "@mahjong/game-core";
 import type { LegalAction, MatchIntent, MatchResult, MatchView, Seat, TableType } from "@mahjong/shared-types";
 
 const winds = ["E", "S", "W", "N"] as const;
-
+const riichiTileSortOrder = new Map(riichi.riichiTileCodes.map((tile, index) => [tile, index]));
 type RiichiMatchState = riichi.RiichiMatchState;
 type RiichiSeat = riichi.RiichiSeat;
 type RiichiTile = riichi.RiichiTile;
@@ -52,7 +52,7 @@ export function riichiStateToView(state: RiichiMatchState, tableType: TableType 
     wallCount: state.liveWall.length,
     claimPrompt: riichiTutorialPrompt(state),
     legalActions: legalActionsForLocalPlayer(state),
-    myHand: state.players[0].hand,
+    myHand: sortRiichiHandForView(state.players[0].hand),
     players: state.players.map((player) => ({
       seat: player.seat,
       name: player.name,
@@ -176,6 +176,10 @@ export function resolveRiichiTutorialAction(state: RiichiMatchState, intent: Mat
   ];
   return next;
 }
+export function sortRiichiHandForView(hand: readonly RiichiTile[]): RiichiTile[] {
+  return [...hand].sort((left, right) => (riichiTileSortOrder.get(left) ?? 999) - (riichiTileSortOrder.get(right) ?? 999));
+}
+
 function isRiichiTutorialState(state: RiichiMatchState): boolean {
   return state.seed.includes("riichi-tutorial");
 }
