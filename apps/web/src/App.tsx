@@ -44,7 +44,7 @@ import {
 import { createPracticeRoom, createRoom } from "./mock/mockGameRoom";
 
 import { matchStateToResult, matchStateToView } from "./mock/matchEngineAdapter";
-import { chooseRiichiBotDiscard, riichiStateToResult, riichiStateToView } from "./mock/riichiEngineAdapter";
+import { chooseRiichiBotDiscard, riichiHanchanToResult, riichiStateToResult, riichiStateToView } from "./mock/riichiEngineAdapter";
 import { resultFromPractice } from "./mock/practiceResult";
 import { loadStoredLocale, saveStoredLocale } from "./localeStorage";
 import { loadStoredWallet, saveStoredWallet } from "./walletStorage";
@@ -234,6 +234,23 @@ export function App() {
     setMatchView(riichiStateToView(nextMatch, config.tableType));
   }
 
+  function settleCompletedRiichiState(completedMatch: riichi.RiichiMatchState) {
+    const handResult = riichiStateToResult(completedMatch);
+    recordCompletedHandMissions(handResult);
+
+    const advancedMatch = riichi.advanceCompletedRiichiHand(completedMatch);
+    commitRiichiState(advancedMatch, tableConfig);
+
+    if (advancedMatch.phase === "complete") {
+      const hanchanResult = riichiHanchanToResult(advancedMatch);
+      setCurrentResult(hanchanResult);
+      window.setTimeout(() => setRoute("result"), 500);
+      return;
+    }
+
+    showToast("Riichi hand settled. Next hand started.");
+  }
+
   function clearPracticeState() {
     practiceStateRef.current = null;
     setPracticeState(null);
@@ -372,13 +389,11 @@ export function App() {
         return;
       }
       const nextMatch = riichi.resolveRiichiAction(currentMatch, { seat: currentMatch.turnSeat, type: "discard", tile: discard });
-      commitRiichiState(nextMatch, tableConfig);
       if (nextMatch.phase === "complete") {
-        const finishedResult = riichiStateToResult(nextMatch);
-        setCurrentResult(finishedResult);
-        recordCompletedHandMissions(finishedResult);
-        window.setTimeout(() => setRoute("result"), 500);
+        settleCompletedRiichiState(nextMatch);
+        return;
       }
+      commitRiichiState(nextMatch, tableConfig);
     }, 950);
 
     return () => window.clearTimeout(botTimer);
@@ -714,13 +729,11 @@ export function App() {
         type: intent.type,
         tile: riichiTile ?? (intent.type === "discard" ? currentRiichiMatch.players[0].hand[0] : undefined),
       });
-      commitRiichiState(nextMatch, tableConfig);
       if (nextMatch.phase === "complete") {
-        const finishedResult = riichiStateToResult(nextMatch);
-        setCurrentResult(finishedResult);
-        recordCompletedHandMissions(finishedResult);
-        window.setTimeout(() => setRoute("result"), 500);
+        settleCompletedRiichiState(nextMatch);
+        return;
       }
+      commitRiichiState(nextMatch, tableConfig);
       return;
     }
 

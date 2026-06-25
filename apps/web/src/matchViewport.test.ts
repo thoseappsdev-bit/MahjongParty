@@ -10,6 +10,8 @@ describe("match viewport layout", () => {
     expect(css).toContain("grid-template-rows: minmax(0, 1fr);");
     expect(css).toContain(".app-shell-match .match-screen {");
     expect(css).toContain("grid-template-rows: auto minmax(280px, 1fr) auto auto;");
+    expect(css).toContain(".tutorial-card {");
+    expect(css).toContain("position: absolute;");
     expect(css).toContain(".action-bar {");
     expect(css).toContain("position: sticky;");
     expect(css).toContain("bottom: 0;");

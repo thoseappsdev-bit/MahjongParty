@@ -4,6 +4,7 @@ import type { RiichiActionInput, RiichiMatchState, RiichiPlayerState, RiichiSeat
 
 export interface CreateRiichiMatchOptions {
   playerNames?: readonly [string, string, string, string];
+  dealerSeat?: RiichiSeat;
 }
 
 const seats = [0, 1, 2, 3] as const;
@@ -16,6 +17,7 @@ export function createRiichiMatchState(seed: string, options: CreateRiichiMatchO
   const deadWall = shuffled.slice(shuffled.length - 14);
   const liveWall = shuffled.slice(0, shuffled.length - 14);
   const names = options.playerNames ?? defaultNames;
+  const dealerSeat = options.dealerSeat ?? 0;
   const players = seats.map((seat) => createPlayer(seat, names[seat])) as RiichiMatchState["players"];
 
   for (let drawIndex = 0; drawIndex < 13; drawIndex += 1) {
@@ -23,14 +25,14 @@ export function createRiichiMatchState(seed: string, options: CreateRiichiMatchO
       player.hand.push(drawRaw(liveWall));
     }
   }
-  players[0].hand.push(drawRaw(liveWall));
+  players[dealerSeat].hand.push(drawRaw(liveWall));
 
   return {
     mode: "riichi",
     phase: "playing",
     seed,
-    context: { roundWind: "we", handNumber: 1, dealerSeat: 0, honba: 0, riichiSticks: 0 },
-    turnSeat: 0,
+    context: { roundWind: "we", handNumber: 1, dealerSeat, honba: 0, riichiSticks: 0 },
+    turnSeat: dealerSeat,
     liveWall,
     deadWall,
     doraIndicators: deadWall.length > 0 ? [deadWall[0]] : [],

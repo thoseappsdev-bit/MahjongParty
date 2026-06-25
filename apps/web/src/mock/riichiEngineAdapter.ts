@@ -35,14 +35,15 @@ export function riichiStateToView(state: RiichiMatchState, tableType: TableType 
 }
 
 export function riichiStateToResult(state: RiichiMatchState): MatchResult {
-  const winEvent = [...state.auditLog].reverse().find((event) => event.action.type === "win");
-  if (!winEvent || typeof winEvent.action.actorSeat !== "number") {
+  const handResult = riichi.riichiHandResultFromState(state);
+  if (!handResult || handResult.kind === "exhaustive-draw") {
     return wallDrawResult();
   }
 
-  const winnerSeat = winEvent.action.actorSeat as RiichiSeat;
+  const winnerSeat = handResult.winnerSeat;
   const winner = state.players[winnerSeat];
-  const winningTile = typeof winEvent.action.payload?.tile === "string" ? (winEvent.action.payload.tile as riichi.RiichiTile) : winner.hand.at(-1);
+  const winEvent = [...state.auditLog].reverse().find((event) => event.action.type === "win");
+  const winningTile = typeof winEvent?.action.payload?.tile === "string" ? (winEvent.action.payload.tile as riichi.RiichiTile) : winner.hand.at(-1);
   const score = winningTile
     ? riichi.scoreRiichiHand({
         hand: winner.hand,
@@ -66,8 +67,23 @@ export function riichiStateToResult(state: RiichiMatchState): MatchResult {
     fanLines: score?.yaku.length
       ? score.yaku.map((line) => ({ id: line.id, nameKey: `riichi.yaku.${line.id}`, fan: line.han || line.yakuman * 13 }))
       : [{ id: "riichi-win", nameKey: "fan.practiceBasic", fan: 1 }],
-    deltas: state.players.map((player) => (player.seat === winnerSeat ? 3000 : -1000)) as MatchResult["deltas"],
-    policyCopy: "Riichi Beta uses prototype scoring until online hanchan settlement is wired.",
+    deltas: handResult.deltas as MatchResult["deltas"],
+    policyCopy: "Riichi hand settlement uses honba, riichi sticks, dealer payments, and yaku scoring.",
+  };
+}
+
+export function riichiHanchanToResult(state: RiichiMatchState): MatchResult {
+  const standings = riichi.finalizeHanchan(state);
+  const winner = standings[0] ?? { seat: 0 as RiichiSeat, name: "Riichi Winner", total: 0 };
+  const deltas = state.players.map((player) => player.points - 30000) as MatchResult["deltas"];
+
+  return {
+    winnerSeat: winner.seat,
+    winnerName: winner.name,
+    totalFan: Math.round(winner.total),
+    fanLines: [{ id: "riichi-hanchan", nameKey: "riichi.hanchanComplete", fan: Math.round(winner.total) }],
+    deltas,
+    policyCopy: "Riichi hanchan complete. Ranking total includes the +15/+5/-5/-15 uma table bonus.",
   };
 }
 
@@ -115,7 +131,7 @@ function wallDrawResult(): MatchResult {
     totalFan: 0,
     fanLines: [{ id: "wall-draw", nameKey: "fan.wallDraw", fan: 0 }],
     deltas: [0, 0, 0, 0],
-    policyCopy: "The wall was exhausted. No winner this hand.",
+    policyCopy: "The wall was exhausted. Riichi tenpai/noten settlement is applied before the next hand.",
   };
 }
 

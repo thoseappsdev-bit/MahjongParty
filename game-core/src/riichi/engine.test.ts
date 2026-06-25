@@ -13,6 +13,15 @@ describe("authoritative Riichi hand engine", () => {
     expect(left.liveWall).toHaveLength(69);
   });
 
+  it("can deal a new hand from any dealer seat", () => {
+    const state = createRiichiMatchState("dealer-seat-seed", { dealerSeat: 2 });
+
+    expect(state.context.dealerSeat).toBe(2);
+    expect(state.turnSeat).toBe(2);
+    expect(state.players.map((player) => player.hand.length)).toEqual([13, 13, 14, 13]);
+    expect(state.liveWall).toHaveLength(69);
+  });
+
   it("moves a discarded tile, draws for the next seat, and records replayable audit events", () => {
     const state = createRiichiMatchState("discard-seed");
     const tile = state.players[0].hand[0];

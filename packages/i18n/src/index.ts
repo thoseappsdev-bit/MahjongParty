@@ -180,6 +180,16 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.practiceBasic": "Practice Basic Hand",
     "fan.wallDraw": "Wall Draw",
     "fan.progressTiebreak": "Casual progress tiebreak: closest valid hand when the wall was exhausted.",
+    "riichi.hanchanComplete": "Riichi hanchan total",
+    "riichi.yaku.menzen-tsumo": "Closed Tsumo",
+    "riichi.yaku.tanyao": "All Simples",
+    "riichi.yaku.pinfu": "Pinfu",
+    "riichi.yaku.riichi": "Riichi",
+    "riichi.yaku.double-riichi": "Double Riichi",
+    "riichi.yaku.ippatsu": "Ippatsu",
+    "riichi.yaku.dora": "Dora",
+    "riichi.yaku.ura-dora": "Ura Dora",
+    "riichi.yaku.kan-dora": "Kan Dora",
   },
   zh: {
     "nav.lobby": "大厅",
@@ -360,6 +370,16 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.practiceBasic": "练习基础和牌",
     "fan.wallDraw": "牌墙摸牌",
     "fan.progressTiebreak": "\u4f11\u95f2\u8fdb\u5ea6\u51b3\u80dc\uff1a\u724c\u5899\u6478\u5b8c\u65f6\uff0c\u6700\u63a5\u8fd1\u6709\u6548\u548c\u724c\u7684\u73a9\u5bb6\u83b7\u80dc\u3002",
+    "riichi.hanchanComplete": "\u7acb\u76f4\u534a\u5e84\u603b\u5206",
+    "riichi.yaku.menzen-tsumo": "\u95e8\u524d\u6e05\u81ea\u6478",
+    "riichi.yaku.tanyao": "\u65ad\u4e48\u4e5d",
+    "riichi.yaku.pinfu": "\u5e73\u548c",
+    "riichi.yaku.riichi": "\u7acb\u76f4",
+    "riichi.yaku.double-riichi": "\u4e24\u7acb\u76f4",
+    "riichi.yaku.ippatsu": "\u4e00\u53d1",
+    "riichi.yaku.dora": "\u5b9d\u724c",
+    "riichi.yaku.ura-dora": "\u91cc\u5b9d\u724c",
+    "riichi.yaku.kan-dora": "\u6760\u5b9d\u724c",
   },  id: {
     "nav.lobby": "Lobi",
     "nav.tables": "Meja",
@@ -539,6 +559,16 @@ const dictionaries: Record<LocaleCode, Record<string, string>> = {
     "fan.practiceBasic": "Hand Dasar Latihan",
     "fan.wallDraw": "Wall Draw",
     "fan.progressTiebreak": "Penentu progres santai: tangan valid terdekat saat dinding habis.",
+    "riichi.hanchanComplete": "Total hanchan Riichi",
+    "riichi.yaku.menzen-tsumo": "Tsumo tertutup",
+    "riichi.yaku.tanyao": "All Simples",
+    "riichi.yaku.pinfu": "Pinfu",
+    "riichi.yaku.riichi": "Riichi",
+    "riichi.yaku.double-riichi": "Double Riichi",
+    "riichi.yaku.ippatsu": "Ippatsu",
+    "riichi.yaku.dora": "Dora",
+    "riichi.yaku.ura-dora": "Ura Dora",
+    "riichi.yaku.kan-dora": "Kan Dora",
   },
 };
 
@@ -556,7 +586,7 @@ export function formatT(locale: LocaleCode, key: string, values: Record<string, 
 }
 
 export function localeName(locale: LocaleCode): string {
-  return { en: "English", zh: "中文", id: "Indonesia" }[locale];
+  return { en: "English", zh: "\u4e2d\u6587", id: "Indonesia" }[locale];
 }
 
 

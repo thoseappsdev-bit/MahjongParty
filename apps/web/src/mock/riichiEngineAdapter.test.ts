@@ -1,6 +1,6 @@
 import { riichi } from "@mahjong/game-core";
 import { describe, expect, it } from "vitest";
-import { chooseRiichiBotDiscard, riichiStateToResult, riichiStateToView } from "./riichiEngineAdapter";
+import { chooseRiichiBotDiscard, riichiHanchanToResult, riichiStateToResult, riichiStateToView } from "./riichiEngineAdapter";
 
 describe("riichi engine adapter", () => {
   it("maps Riichi state to the shared match view", () => {
@@ -19,6 +19,34 @@ describe("riichi engine adapter", () => {
     state.players[1].hand = ["m1", "p2", "we"];
 
     expect(chooseRiichiBotDiscard(state)).toBe("we");
+  });
+
+  it("maps a completed Riichi win to real settlement deltas", () => {
+    const state = riichi.createRiichiMatchState("web-riichi-result");
+    state.players[0].hand = ["m2", "m3", "m4", "m3", "m4", "m5", "p2", "p3", "p4", "p6", "p7", "p8", "s5", "s5"];
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+
+    const completed = riichi.resolveRiichiAction(state, { seat: 0, type: "win", tile: "s5" });
+    const result = riichiStateToResult(completed);
+
+    expect(result.winnerName).toBe("Lina");
+    expect(result.deltas[0]).toBeGreaterThan(0);
+    expect(result.policyCopy).not.toContain("prototype");
+  });
+
+  it("maps a completed hanchan to final standings copy", () => {
+    const state = riichi.createRiichiMatchState("web-hanchan-result");
+    state.phase = "complete";
+    state.players[0].points = 42000;
+    state.players[1].points = 31000;
+    state.players[2].points = 27000;
+    state.players[3].points = 20000;
+
+    const result = riichiHanchanToResult(state);
+
+    expect(result.winnerName).toBe("Lina");
+    expect(result.fanLines).toContainEqual({ id: "riichi-hanchan", nameKey: "riichi.hanchanComplete", fan: 27 });
   });
 
   it("returns a neutral wall-draw result when no win is recorded", () => {

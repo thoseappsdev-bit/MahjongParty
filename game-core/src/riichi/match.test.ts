@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { advanceRiichiRound, finalizeHanchan, settleTenpaiNoten, type RiichiHandResult, type RiichiMatchState } from "./index";
+import {
+  advanceCompletedRiichiHand,
+  advanceRiichiRound,
+  createRiichiMatchState,
+  finalizeHanchan,
+  resolveRiichiAction,
+  riichiHandResultFromState,
+  scoreRiichiHand,
+  settleRiichiWin,
+  settleTenpaiNoten,
+  type RiichiHandResult,
+  type RiichiMatchState,
+} from "./index";
 
 type TestStateOverrides = Omit<Partial<RiichiMatchState>, "context" | "players"> & {
   context?: Partial<RiichiMatchState["context"]>;
@@ -125,6 +137,60 @@ describe("WRC Riichi match progression", () => {
 
     expect(next.phase).toBe("complete");
     expect(next.players.map((player) => player.points)).toEqual([13000, 30000, 35000, 42000]);
+  });
+
+  it("deals the next hanchan hand with the rotated dealer and preserved points", () => {
+    const next = advanceRiichiRound(
+      state({ context: { roundWind: "we", handNumber: 1, dealerSeat: 0, honba: 0, riichiSticks: 0 } }),
+      winResult({ winnerSeat: 2, deltas: [0, 0, 8000, -8000] }),
+    );
+
+    expect(next.phase).toBe("playing");
+    expect(next.context).toMatchObject({ roundWind: "we", handNumber: 2, dealerSeat: 1, honba: 0 });
+    expect(next.turnSeat).toBe(1);
+    expect(next.players.map((player) => player.hand.length)).toEqual([13, 14, 13, 13]);
+    expect(next.liveWall).toHaveLength(69);
+    expect(next.players.map((player) => player.points)).toEqual([30000, 30000, 38000, 22000]);
+  });
+
+  it("derives Riichi hand settlement from a completed engine win", () => {
+    const state = createRiichiMatchState("riichi-real-settle");
+    state.players[0].hand = ["m2", "m3", "m4", "m3", "m4", "m5", "p2", "p3", "p4", "p6", "p7", "p8", "s5", "s5"];
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+
+    const completed = resolveRiichiAction(state, { seat: 0, type: "win", tile: "s5" });
+    const result = riichiHandResultFromState(completed);
+    const score = scoreRiichiHand({
+      hand: completed.players[0].hand,
+      winningTile: "s5",
+      winBy: "tsumo",
+      doraIndicators: [],
+      uraDoraIndicators: [],
+      seatWind: "we",
+      roundWind: "we",
+    });
+
+    expect(score.legal).toBe(true);
+    expect(result).toMatchObject({ kind: "win", winnerSeat: 0 });
+    expect(result?.kind === "win" ? result.deltas : null).toEqual(
+      settleRiichiWin(score, { winnerSeat: 0, winBy: "tsumo", dealerSeat: 0, honba: 0, riichiSticks: 0 }),
+    );
+  });
+
+  it("advances a completed Riichi hand into the next hand instead of stopping the hanchan early", () => {
+    const state = createRiichiMatchState("riichi-advance-complete");
+    state.players[0].hand = ["m2", "m3", "m4", "m3", "m4", "m5", "p2", "p3", "p4", "p6", "p7", "p8", "s5", "s5"];
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+
+    const completed = resolveRiichiAction(state, { seat: 0, type: "win", tile: "s5" });
+    const next = advanceCompletedRiichiHand(completed);
+
+    expect(next.phase).toBe("playing");
+    expect(next.context).toMatchObject({ roundWind: "we", handNumber: 1, dealerSeat: 0, honba: 1 });
+    expect(next.players[0].points).toBeGreaterThan(30000);
+    expect(next.players.map((player) => player.hand.length)).toEqual([14, 13, 13, 13]);
   });
 
   it("finalizes standings with +15/+5/-5/-15 uma and splits ties", () => {
