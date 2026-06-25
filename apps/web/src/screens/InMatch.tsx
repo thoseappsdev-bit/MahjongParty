@@ -13,12 +13,28 @@ const actionKeys: Record<LegalAction, string> = {
   discard: "match.discard",
 };
 
+const riichiActionKeys: Record<LegalAction, string> = {
+  chi: "match.riichiChi",
+  pong: "match.riichiPon",
+  kong: "match.riichiKan",
+  win: "match.riichiWin",
+  discard: "match.riichiDiscard",
+};
+
 const actionInfoKeys: Record<LegalAction, string> = {
   chi: "actionInfo.chi",
   pong: "actionInfo.pong",
   kong: "actionInfo.kong",
   win: "actionInfo.win",
   discard: "actionInfo.discard",
+};
+
+const riichiActionInfoKeys: Record<LegalAction, string> = {
+  chi: "actionInfo.riichiChi",
+  pong: "actionInfo.riichiPon",
+  kong: "actionInfo.riichiKan",
+  win: "actionInfo.riichiWin",
+  discard: "actionInfo.riichiDiscard",
 };
 
 const allActions = Object.keys(actionKeys) as LegalAction[];
@@ -197,12 +213,12 @@ export function InMatch({
               disabled={!view.legalActions.includes(action)}
               onClick={() => submitAction({ type: action })}
             >
-              {t(locale, actionKeys[action])}
+              {t(locale, actionLabelKeyFor(action, view.mode))}
             </Button>
-            <span className="action-info" tabIndex={0} aria-label={t(locale, actionInfoKeys[action])}>
+            <span className="action-info" tabIndex={0} aria-label={t(locale, actionInfoKeyFor(action, view.mode))}>
               <CircleHelp aria-hidden="true" size={14} />
               <span className="action-tooltip" role="tooltip">
-                {t(locale, actionInfoKeys[action])}
+                {t(locale, actionInfoKeyFor(action, view.mode))}
               </span>
             </span>
           </div>
@@ -220,6 +236,14 @@ export function InMatch({
       </div>
     </div>
   );
+}
+
+export function actionLabelKeyFor(action: LegalAction, mode: MatchView["mode"]): string {
+  return mode === "riichi" ? riichiActionKeys[action] : actionKeys[action];
+}
+
+export function actionInfoKeyFor(action: LegalAction, mode: MatchView["mode"]): string {
+  return mode === "riichi" ? riichiActionInfoKeys[action] : actionInfoKeys[action];
 }
 
 function tutorialGuideKeyFor(action: LegalAction | undefined): string | null {
@@ -248,11 +272,11 @@ function statusForView(view: MatchView, canPass: boolean): string {
   }
 
   if (view.legalActions.includes("discard")) {
-    return "Your turn: choose a tile to discard.";
+    return view.mode === "riichi" ? "Your turn: discard one tile. In Riichi, keep a legal yaku in mind." : "Your turn: choose a tile to discard.";
   }
 
   if (view.legalActions.length > 0) {
-    return "Action available: choose a highlighted button.";
+    return view.mode === "riichi" ? "Riichi action available: choose the highlighted term." : "Action available: choose a highlighted button.";
   }
 
   const activePlayer = view.players[view.turnSeat];

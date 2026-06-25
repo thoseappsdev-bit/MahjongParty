@@ -44,7 +44,7 @@ import {
 import { createPracticeRoom, createRoom } from "./mock/mockGameRoom";
 
 import { matchStateToResult, matchStateToView } from "./mock/matchEngineAdapter";
-import { chooseRiichiBotDiscard, riichiHanchanToResult, riichiStateToResult, riichiStateToView } from "./mock/riichiEngineAdapter";
+import { chooseRiichiBotDiscard, createRiichiTutorialState, resolveRiichiTutorialAction, riichiHanchanToResult, riichiStateToResult, riichiStateToView } from "./mock/riichiEngineAdapter";
 import { resultFromPractice } from "./mock/practiceResult";
 import { loadStoredLocale, saveStoredLocale } from "./localeStorage";
 import { loadStoredWallet, saveStoredWallet } from "./walletStorage";
@@ -718,7 +718,7 @@ export function App() {
     setLanEventLog(null);
     setLanAuditMessages(null);
     const practiceRoom = createPracticeRoom();
-    const nextMatch = riichi.createRiichiMatchState(`riichi-tutorial-${Date.now()}`);
+    const nextMatch = createRiichiTutorialState(`riichi-tutorial-${Date.now()}`);
     setRoom({ ...practiceRoom, config: { ...practiceRoom.config, mode: "riichi", tableType: "friendly" } });
     clearPracticeState();
     clearMatchState();
@@ -767,12 +767,21 @@ export function App() {
         return;
       }
       const riichiTile = intent.tile && riichi.isRiichiTile(intent.tile) ? intent.tile : undefined;
-      const nextMatch = riichi.resolveRiichiAction(currentRiichiMatch, {
-        seat: 0,
-        type: intent.type,
-        tile: riichiTile ?? (intent.type === "discard" ? currentRiichiMatch.players[0].hand[0] : undefined),
-      });
+      const nextMatch = tutorialRuleset === "riichi"
+        ? resolveRiichiTutorialAction(currentRiichiMatch, { ...intent, tile: riichiTile })
+        : riichi.resolveRiichiAction(currentRiichiMatch, {
+            seat: 0,
+            type: intent.type,
+            tile: riichiTile ?? (intent.type === "discard" ? currentRiichiMatch.players[0].hand[0] : undefined),
+          });
       if (nextMatch.phase === "complete") {
+        if (tutorialRuleset === "riichi") {
+          const finishedResult = riichiStateToResult(nextMatch);
+          setCurrentResult(finishedResult);
+          recordCompletedHandMissions(finishedResult);
+          window.setTimeout(() => setRoute("result"), 500);
+          return;
+        }
         settleCompletedRiichiState(nextMatch);
         return;
       }

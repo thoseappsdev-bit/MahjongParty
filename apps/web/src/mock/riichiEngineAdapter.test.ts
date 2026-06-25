@@ -1,6 +1,6 @@
 import { riichi } from "@mahjong/game-core";
 import { describe, expect, it } from "vitest";
-import { chooseRiichiBotDiscard, riichiHanchanToResult, riichiStateToResult, riichiStateToView } from "./riichiEngineAdapter";
+import { chooseRiichiBotDiscard, createRiichiTutorialState, resolveRiichiTutorialAction, riichiHanchanToResult, riichiStateToResult, riichiStateToView } from "./riichiEngineAdapter";
 
 describe("riichi engine adapter", () => {
   it("maps Riichi state to the shared match view", () => {
@@ -31,6 +31,18 @@ describe("riichi engine adapter", () => {
     expect(riichiStateToView(state).legalActions).toContain("win");
   });
 
+  it("keeps the Riichi tutorial on the local player after the guided discard", () => {
+    const state = createRiichiTutorialState("web-riichi-tutorial");
+
+    expect(riichiStateToView(state).legalActions).toEqual(["discard"]);
+
+    const afterDiscard = resolveRiichiTutorialAction(state, { type: "discard", tile: "s9" });
+    const view = riichiStateToView(afterDiscard);
+
+    expect(view.turnSeat).toBe(0);
+    expect(view.legalActions).toEqual(["win", "discard"]);
+    expect(view.recentEvent).toContain("Tanyao yaku");
+  });
   it("chooses a deterministic bot discard", () => {
     const state = riichi.createRiichiMatchState("bot-riichi");
     state.turnSeat = 1;

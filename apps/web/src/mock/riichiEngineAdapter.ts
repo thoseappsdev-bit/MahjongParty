@@ -1,10 +1,45 @@
 import { riichi } from "@mahjong/game-core";
-import type { LegalAction, MatchResult, MatchView, Seat, TableType } from "@mahjong/shared-types";
+import type { LegalAction, MatchIntent, MatchResult, MatchView, Seat, TableType } from "@mahjong/shared-types";
 
 const winds = ["E", "S", "W", "N"] as const;
 
 type RiichiMatchState = riichi.RiichiMatchState;
 type RiichiSeat = riichi.RiichiSeat;
+type RiichiTile = riichi.RiichiTile;
+
+const riichiTutorialOpeningHand: RiichiTile[] = [
+  "m2",
+  "m3",
+  "m5",
+  "m6",
+  "p2",
+  "p4",
+  "p5",
+  "p7",
+  "s2",
+  "s3",
+  "s5",
+  "s6",
+  "s8",
+  "s9",
+];
+
+const riichiTutorialTsumoHand: RiichiTile[] = [
+  "m2",
+  "m3",
+  "m4",
+  "m3",
+  "m4",
+  "m5",
+  "p2",
+  "p3",
+  "p4",
+  "p6",
+  "p7",
+  "p8",
+  "s5",
+  "s5",
+];
 
 export function riichiStateToView(state: RiichiMatchState, tableType: TableType = "friendly"): MatchView {
   return {
@@ -94,6 +129,50 @@ export function chooseRiichiBotDiscard(state: RiichiMatchState): riichi.RiichiTi
   return isolatedHonor ?? player.hand[player.hand.length - 1];
 }
 
+export function createRiichiTutorialState(seed = "riichi-tutorial"): RiichiMatchState {
+  const state = riichi.createRiichiMatchState(seed);
+  const next = cloneRiichiState(state);
+  next.turnSeat = 0;
+  next.liveWall = next.liveWall.slice(0, 68);
+  next.doraIndicators = ["p4"];
+  next.uraDoraIndicators = ["s4"];
+  next.players[0].hand = [...riichiTutorialOpeningHand];
+  next.players[0].discards = [];
+  next.players[0].riichi = false;
+  next.players[0].ippatsu = false;
+  next.players[1].discards = ["m5"];
+  next.players[2].discards = [];
+  next.players[3].discards = [];
+  next.eventLog = [
+    "Riichi tutorial started.",
+    "Tutorial: start by discarding one isolated tile. After that, the lesson gives you a simple Tanyao self-draw.",
+  ];
+  next.auditLog = [];
+  return next;
+}
+
+export function resolveRiichiTutorialAction(state: RiichiMatchState, intent: MatchIntent): RiichiMatchState {
+  if (intent.type === "win") {
+    return riichi.resolveRiichiAction(state, { seat: 0, type: "win", tile: state.players[0].hand.at(-1) });
+  }
+
+  if (intent.type !== "discard") {
+    return cloneRiichiState(state);
+  }
+
+  const discardedTile = riichi.isRiichiTile(intent.tile ?? "") ? (intent.tile as RiichiTile) : (state.players[0].hand[0] ?? "s9");
+  const next = cloneRiichiState(state);
+  next.turnSeat = 0;
+  next.liveWall = next.liveWall.slice(1);
+  next.players[0].discards = [...next.players[0].discards, discardedTile];
+  next.players[0].hand = [...riichiTutorialTsumoHand];
+  next.eventLog = [
+    ...next.eventLog,
+    `Lina discarded ${discardedTile}.`,
+    "Tutorial: Lina drew S5. Tsumo / Win is available because the hand has four groups, a pair, and the Tanyao yaku.",
+  ];
+  return next;
+}
 function legalActionsForLocalPlayer(state: RiichiMatchState): LegalAction[] {
   if (state.phase === "complete" || state.turnSeat !== 0) return [];
   const actions: LegalAction[] = ["discard"];
@@ -128,6 +207,26 @@ function canLocalTsumo(state: RiichiMatchState): boolean {
   } catch {
     return false;
   }
+}
+
+function cloneRiichiState(state: RiichiMatchState): RiichiMatchState {
+  return {
+    ...state,
+    context: { ...state.context },
+    liveWall: [...state.liveWall],
+    deadWall: [...state.deadWall],
+    doraIndicators: [...state.doraIndicators],
+    uraDoraIndicators: [...state.uraDoraIndicators],
+    kanDoraIndicators: [...state.kanDoraIndicators],
+    players: state.players.map((player) => ({
+      ...player,
+      hand: [...player.hand],
+      discards: [...player.discards],
+      melds: player.melds.map((meld) => ({ ...meld, tiles: [...meld.tiles] })),
+    })) as RiichiMatchState["players"],
+    eventLog: [...state.eventLog],
+    auditLog: [...state.auditLog],
+  };
 }
 
 function wallDrawResult(): MatchResult {
