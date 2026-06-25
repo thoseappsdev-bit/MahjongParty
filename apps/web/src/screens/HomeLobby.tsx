@@ -9,14 +9,16 @@ export function HomeLobby({
   wallet,
   onNavigate,
   onPractice,
-  onTutorial,
+  onHongKongTutorial,
+  onRiichiTutorial,
 }: {
   locale: LocaleCode;
   profile: Profile;
   wallet: Wallet;
   onNavigate: (route: Route) => void;
   onPractice: () => void;
-  onTutorial: () => void;
+  onHongKongTutorial: () => void;
+  onRiichiTutorial: () => void;
 }) {
   return (
     <div className="screen lobby-screen">
@@ -72,8 +74,11 @@ export function HomeLobby({
             <Button tone="secondary" onClick={onPractice}>
               {t(locale, "home.startPractice")}
             </Button>
-            <Button tone="ghost" onClick={onTutorial}>
-              {t(locale, "home.startTutorial")}
+            <Button tone="ghost" onClick={onHongKongTutorial}>
+              {t(locale, "home.startHongKongTutorial")}
+            </Button>
+            <Button tone="ghost" onClick={onRiichiTutorial}>
+              {t(locale, "home.startRiichiTutorial")}
             </Button>
           </div>
         </Panel>

@@ -142,6 +142,7 @@ export function App() {
   const [practiceState, setPracticeState] = useState<PracticeMatchState | null>(null);
   const [isPractice, setIsPractice] = useState(false);
   const [practiceMode, setPracticeMode] = useState<"ai" | "tutorial" | null>(null);
+  const [tutorialRuleset, setTutorialRuleset] = useState<"hongkong" | "riichi" | null>(null);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [rewards, setRewards] = useState<DailyReward[]>(dailyRewards);
   const [missions, setMissions] = useState<DailyMission[]>(dailyMissions);
@@ -604,6 +605,7 @@ export function App() {
 
     setIsPractice(false);
     setPracticeMode(null);
+    setTutorialRuleset(null);
     clearPracticeState();
     clearMatchState();
     clearRiichiState();
@@ -666,6 +668,7 @@ export function App() {
     commitPracticeState(nextPractice);
     setIsPractice(true);
     setPracticeMode("ai");
+    setTutorialRuleset(null);
     setTutorialOpen(false);
     setRoute("match");
     showToast("AI practice table started.");
@@ -683,9 +686,28 @@ export function App() {
     commitPracticeState(nextPractice);
     setIsPractice(true);
     setPracticeMode("tutorial");
+    setTutorialRuleset("hongkong");
     setTutorialOpen(true);
     setRoute("match");
-    showToast("Tutorial table started.");
+    showToast("Old Hong Kong tutorial table started.");
+  }
+
+  function handleStartRiichiTutorial() {
+    rememberLanSession(null);
+    setLanEventLog(null);
+    setLanAuditMessages(null);
+    const practiceRoom = createPracticeRoom();
+    const nextMatch = riichi.createRiichiMatchState(`riichi-tutorial-${Date.now()}`);
+    setRoom({ ...practiceRoom, config: { ...practiceRoom.config, mode: "riichi", tableType: "friendly" } });
+    clearPracticeState();
+    clearMatchState();
+    commitRiichiState(nextMatch, { ...practiceRoom.config, mode: "riichi", tableType: "friendly" });
+    setIsPractice(true);
+    setPracticeMode("tutorial");
+    setTutorialRuleset("riichi");
+    setTutorialOpen(true);
+    setRoute("match");
+    showToast("Riichi tutorial table started.");
   }
 
   function handleMatchAction(intent: MatchIntent) {
@@ -766,6 +788,7 @@ export function App() {
     setLanAuditMessages(snapshot.auditLog.map((entry) => entry.message));
     setIsPractice(false);
     setPracticeMode(null);
+    setTutorialRuleset(null);
     clearPracticeState();
     clearMatchState();
 
@@ -976,7 +999,8 @@ export function App() {
           wallet={wallet}
           onNavigate={setRoute}
           onPractice={handleStartPractice}
-          onTutorial={handleStartTutorial}
+          onHongKongTutorial={handleStartTutorial}
+          onRiichiTutorial={handleStartRiichiTutorial}
         />
         <AuditReplayViewer
           events={mockAuditReplayEvents}
@@ -1047,7 +1071,7 @@ export function App() {
         result={currentResult}
         locale={locale}
         onHome={() => setRoute("home")}
-        onRematch={practiceMode === "tutorial" ? handleStartTutorial : isPractice ? handleStartPractice : handleRematch}
+        onRematch={practiceMode === "tutorial" ? (tutorialRuleset === "riichi" ? handleStartRiichiTutorial : handleStartTutorial) : isPractice ? handleStartPractice : handleRematch}
       />
     ),
     shop: <Shop locale={locale} catalog={shopCatalog} wallet={wallet} onBuy={handleBuy} />,

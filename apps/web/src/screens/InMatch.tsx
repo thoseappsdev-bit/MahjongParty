@@ -48,7 +48,10 @@ export function InMatch({
 }) {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [displaySeconds, setDisplaySeconds] = useState(view.timerSeconds);
-  const tutorialKeys = ["tutorial.step1", "tutorial.step2", "tutorial.step3", "tutorial.step4", "tutorial.step5"];
+  const tutorialKeys =
+    view.mode === "riichi"
+      ? ["tutorial.riichiStep1", "tutorial.riichiStep2", "tutorial.riichiStep3", "tutorial.riichiStep4", "tutorial.riichiStep5"]
+      : ["tutorial.step1", "tutorial.step2", "tutorial.step3", "tutorial.step4", "tutorial.step5"];
   const isLastTutorialStep = tutorialStep === tutorialKeys.length - 1;
   const tutorialGuideKey = tutorialGuideKeyFor(view.legalActions[0]);
   const canDiscard = view.legalActions.includes("discard");

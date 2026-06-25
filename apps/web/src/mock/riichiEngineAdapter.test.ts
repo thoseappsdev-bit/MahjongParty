@@ -13,6 +13,24 @@ describe("riichi engine adapter", () => {
     expect(view.legalActions).toContain("discard");
   });
 
+  it("does not offer Win for an invalid Riichi shape even when yaku-like tiles are present", () => {
+    const state = riichi.createRiichiMatchState("web-riichi-no-false-win");
+    state.players[0].hand = ["m2", "m3", "m5", "m6", "p2", "p4", "p5", "p7", "s2", "s3", "s5", "s6", "s8", "s9"];
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+
+    expect(riichiStateToView(state).legalActions).toEqual(["discard"]);
+  });
+
+  it("offers Win for a legal Riichi self-draw shape with yaku", () => {
+    const state = riichi.createRiichiMatchState("web-riichi-legal-win");
+    state.players[0].hand = ["m2", "m3", "m4", "m3", "m4", "m5", "p2", "p3", "p4", "p6", "p7", "p8", "s5", "s5"];
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+
+    expect(riichiStateToView(state).legalActions).toContain("win");
+  });
+
   it("chooses a deterministic bot discard", () => {
     const state = riichi.createRiichiMatchState("bot-riichi");
     state.turnSeat = 1;

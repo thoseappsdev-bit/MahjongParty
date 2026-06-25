@@ -105,7 +105,13 @@ function canLocalTsumo(state: RiichiMatchState): boolean {
   const player = state.players[0];
   const winningTile = player.hand.at(-1);
   if (!winningTile) return false;
+
+  const handBeforeDraw = player.hand.slice(0, -1);
   try {
+    if (!riichi.winningTiles(handBeforeDraw, player.melds).includes(winningTile)) {
+      return false;
+    }
+
     return riichi.scoreRiichiHand({
       hand: player.hand,
       melds: player.melds,
