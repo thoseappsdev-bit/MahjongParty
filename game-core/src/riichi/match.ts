@@ -7,10 +7,14 @@ import { isTenpai } from "./waits";
 const seats = [0, 1, 2, 3] as const;
 const umaByRank = [15, 5, -5, -15] as const;
 
+type RiichiWinBy = "ron" | "tsumo";
+
 export type RiichiHandResult =
   | {
       kind: "win";
       winnerSeat: RiichiSeat;
+      winBy: RiichiWinBy;
+      payerSeat?: RiichiSeat;
       deltas: [number, number, number, number];
       riichiDeposits?: RiichiSeat[];
     }
@@ -66,11 +70,16 @@ export function riichiHandResultFromState(state: RiichiMatchState): RiichiHandRe
   const winningTile = typeof eventTile === "string" && isRiichiTile(eventTile) ? eventTile : winner.hand.at(-1);
   if (!winningTile) return null;
 
+  const winBy = terminalEvent.action.payload?.winBy === "ron" ? "ron" : "tsumo";
+  const payloadPayer = terminalEvent.action.payload?.payerSeat;
+  const payerSeat = typeof payloadPayer === "number" && seats.includes(payloadPayer as RiichiSeat) ? (payloadPayer as RiichiSeat) : undefined;
+  if (winBy === "ron" && typeof payerSeat !== "number") return null;
+
   const score = scoreRiichiHand({
     hand: winner.hand,
     melds: winner.melds,
     winningTile,
-    winBy: "tsumo",
+    winBy,
     riichi: winner.riichi,
     doubleRiichi: winner.doubleRiichi,
     ippatsu: winner.ippatsu,
@@ -84,9 +93,12 @@ export function riichiHandResultFromState(state: RiichiMatchState): RiichiHandRe
   return {
     kind: "win",
     winnerSeat,
+    winBy,
+    payerSeat,
     deltas: settleRiichiWin(score, {
       winnerSeat,
-      winBy: "tsumo",
+      winBy,
+      payerSeat,
       dealerSeat: state.context.dealerSeat,
       honba: state.context.honba,
       riichiSticks: state.context.riichiSticks,

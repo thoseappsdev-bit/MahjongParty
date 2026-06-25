@@ -84,12 +84,13 @@ export function riichiStateToResult(state: RiichiMatchState): MatchResult {
         hand: winner.hand,
         melds: winner.melds,
         winningTile,
-        winBy: "tsumo",
+        winBy: handResult.winBy,
         riichi: winner.riichi,
         doubleRiichi: winner.doubleRiichi,
         ippatsu: winner.ippatsu,
         doraIndicators: state.doraIndicators,
         uraDoraIndicators: state.uraDoraIndicators,
+        kanDoraIndicators: state.kanDoraIndicators,
         seatWind: seatWindFor(winnerSeat),
         roundWind: state.context.roundWind,
       })
@@ -105,7 +106,9 @@ export function riichiStateToResult(state: RiichiMatchState): MatchResult {
     deltas: handResult.deltas as MatchResult["deltas"],
     policyCopy: isRiichiTutorialState(state)
       ? "Tutorial complete: Tanyao is a yaku because the hand has no 1, 9, or honor tiles. Closed Tsumo is another yaku because Lina drew the winning tile herself with a closed hand."
-      : "Riichi hand settlement uses honba, riichi sticks, dealer payments, and yaku scoring.",
+      : handResult.winBy === "ron"
+        ? "Riichi Ron settlement charges only the discarder, then applies honba and riichi sticks."
+        : "Riichi Tsumo settlement collects from all opponents, then applies honba and riichi sticks.",
   };
 }
 

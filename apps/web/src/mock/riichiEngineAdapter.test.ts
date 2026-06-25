@@ -110,6 +110,25 @@ describe("riichi engine adapter", () => {
     expect(chooseRiichiBotDiscard(state)).toBe("we");
   });
 
+  it("maps a completed Riichi Ron without Tsumo yaku", () => {
+    const state = riichi.createRiichiMatchState("web-riichi-ron-result");
+    state.turnSeat = 3;
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+    state.players[0].hand = ["m2", "m3", "m4", "p3", "p4", "p5", "s4", "s5", "s6", "m6", "m7", "m8", "p2"];
+    state.players[3].hand = ["p2", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+
+    const claimWindow = riichi.resolveRiichiAction(state, { seat: 3, type: "discard", tile: "p2" });
+    const completed = riichi.resolveRiichiAction(claimWindow, { seat: 0, type: "win" });
+    const result = riichiStateToResult(completed);
+
+    expect(result.winnerName).toBe("Lina");
+    expect(result.policyCopy).toContain("Ron settlement charges only the discarder");
+    expect(result.fanLines.map((line) => line.id)).not.toContain("menzen-tsumo");
+    expect(result.deltas[3]).toBeLessThan(0);
+    expect(result.deltas[1]).toBe(0);
+    expect(result.deltas[2]).toBe(0);
+  });
   it("maps a completed Riichi win to real settlement deltas", () => {
     const state = riichi.createRiichiMatchState("web-riichi-result");
     state.players[0].hand = ["m2", "m3", "m4", "m3", "m4", "m5", "p2", "p3", "p4", "p6", "p7", "p8", "s5", "s5"];

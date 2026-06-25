@@ -65,6 +65,8 @@ function winResult(overrides: Partial<Extract<RiichiHandResult, { kind: "win" }>
   return {
     kind: "win",
     winnerSeat: 1,
+    winBy: "ron",
+    payerSeat: 2,
     deltas: [0, 3900, -3900, 0],
     riichiDeposits: [],
     ...overrides,
@@ -178,6 +180,34 @@ describe("WRC Riichi match progression", () => {
     );
   });
 
+  it("derives Riichi Ron settlement from a completed claim win", () => {
+    const state = createRiichiMatchState("riichi-real-ron-settle");
+    state.turnSeat = 3;
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+    state.players[0].hand = ["m2", "m3", "m4", "p3", "p4", "p5", "s4", "s5", "s6", "m6", "m7", "m8", "p2"];
+    state.players[3].hand = ["p2", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+
+    const claimWindow = resolveRiichiAction(state, { seat: 3, type: "discard", tile: "p2" });
+    const completed = resolveRiichiAction(claimWindow, { seat: 0, type: "win" });
+    const result = riichiHandResultFromState(completed);
+    const score = scoreRiichiHand({
+      hand: completed.players[0].hand,
+      winningTile: "p2",
+      winBy: "ron",
+      doraIndicators: [],
+      uraDoraIndicators: [],
+      seatWind: "we",
+      roundWind: "we",
+    });
+
+    expect(score.legal).toBe(true);
+    expect(result).toMatchObject({ kind: "win", winnerSeat: 0, winBy: "ron", payerSeat: 3 });
+    expect(result?.kind === "win" ? result.deltas : null).toEqual(
+      settleRiichiWin(score, { winnerSeat: 0, winBy: "ron", payerSeat: 3, dealerSeat: 0, honba: 0, riichiSticks: 0 }),
+    );
+    expect(result?.kind === "win" ? result.deltas.filter((delta) => delta < 0) : []).toEqual([result?.kind === "win" ? result.deltas[3] : 0]);
+  });
   it("advances a completed Riichi hand into the next hand instead of stopping the hanchan early", () => {
     const state = createRiichiMatchState("riichi-advance-complete");
     state.players[0].hand = ["m2", "m3", "m4", "m3", "m4", "m5", "p2", "p3", "p4", "p6", "p7", "p8", "s5", "s5"];

@@ -50,6 +50,40 @@ describe("authoritative Riichi hand engine", () => {
   });
 
 
+  it("opens and resolves a local Ron claim with payer metadata", () => {
+    const state = createRiichiMatchState("riichi-ron-claim");
+    state.turnSeat = 3;
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+    state.players[0].hand = ["m2", "m3", "m4", "p3", "p4", "p5", "s4", "s5", "s6", "m6", "m7", "m8", "p2"];
+    state.players[3].hand = ["p2", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+
+    const claimWindow = resolveRiichiAction(state, { seat: 3, type: "discard", tile: "p2" });
+    const completed = resolveRiichiAction(claimWindow, { seat: 0, type: "win" });
+    const winEvent = completed.auditLog.at(-1);
+
+    expect(claimWindow.claimWindow?.offers).toContainEqual({ seat: 0, type: "win", tile: "p2" });
+    expect(completed.phase).toBe("complete");
+    expect(completed.players[0].hand).toContain("p2");
+    expect(completed.players[3].discards).not.toContain("p2");
+    expect(winEvent?.action).toMatchObject({ type: "win", actorSeat: 0, payload: { tile: "p2", winBy: "ron", payerSeat: 3 } });
+  });
+
+  it("marks temporary furiten when the local player passes Ron", () => {
+    const state = createRiichiMatchState("riichi-ron-pass");
+    state.turnSeat = 1;
+    state.doraIndicators = [];
+    state.uraDoraIndicators = [];
+    state.players[0].hand = ["m2", "m3", "m4", "p3", "p4", "p5", "s4", "s5", "s6", "m6", "m7", "m8", "p2"];
+    state.players[1].hand = ["p2", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+    state.liveWall = ["m9"];
+
+    const claimWindow = resolveRiichiAction(state, { seat: 1, type: "discard", tile: "p2" });
+    const passed = resolveRiichiAction(claimWindow, { seat: 0, type: "pass" });
+
+    expect(passed.players[0].furiten).toBe("temporary");
+    expect(passed.players[2].hand.at(-1)).toBe("m9");
+  });
   it("opens a local Chi window before drawing when the previous seat discards P4", () => {
     const state = createRiichiMatchState("riichi-p4-claim");
     state.turnSeat = 3;

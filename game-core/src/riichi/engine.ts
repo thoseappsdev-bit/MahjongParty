@@ -1,6 +1,8 @@
-import { appendMatchEvent, type MatchEvent } from "../action-log";
+import { appendMatchEvent, type JsonObject, type MatchEvent } from "../action-log";
 import { buildRiichiWall, type RiichiTile } from "./tiles";
+import { scoreRiichiHand } from "./scoring";
 import type { RiichiActionInput, RiichiActionOffer, RiichiClaimWindow, RiichiMatchState, RiichiPlayerState, RiichiSeat } from "./types";
+import { canRon, winningTiles } from "./waits";
 
 export interface CreateRiichiMatchOptions {
   playerNames?: readonly [string, string, string, string];
@@ -12,6 +14,10 @@ const defaultNames = ["Lina", "Bo Bot", "Chen Bot", "Dewi Bot"] as const;
 const defaultAvatars = ["L", "B", "C", "D"] as const;
 const DECISION_TYPES = new Set<string>(["discard", "chi", "pong", "kong", "riichi", "win", "pass"]);
 const suits = ["m", "p", "s"] as const;
+const seatWinds = ["we", "ws", "ww", "wn"] as const;
+
+type WinBy = "ron" | "tsumo";
+type RiichiLogAction = RiichiActionInput & { winBy?: WinBy; payerSeat?: RiichiSeat };
 
 export function createRiichiMatchState(seed: string, options: CreateRiichiMatchOptions = {}): RiichiMatchState {
   const shuffled = shuffle(buildRiichiWall(), seed);
@@ -72,7 +78,7 @@ export function resolveRiichiAction(state: RiichiMatchState, action: RiichiActio
     return next;
   }
   if (action.type === "win") {
-    completeWin(next, action.seat, action.tile);
+    completeWin(next, action.seat, action.tile, "tsumo");
     return next;
   }
 
@@ -134,12 +140,12 @@ function resolveClaimAction(state: RiichiMatchState, action: RiichiActionInput):
 
   if (offer.type === "win") {
     const next = cloneState(state);
-    const tile = offer.tile ?? next.claimWindow?.discard.tile;
-    if (tile) {
-      next.players[offer.seat].hand = [...next.players[offer.seat].hand, tile];
-    }
+    const window = next.claimWindow as RiichiClaimWindow;
+    const tile = offer.tile ?? window.discard.tile;
+    removeLastDiscard(next.players[window.discard.seat], tile);
+    next.players[offer.seat].hand = [...next.players[offer.seat].hand, tile];
     next.claimWindow = null;
-    completeWin(next, offer.seat, tile);
+    completeWin(next, offer.seat, tile, "ron", window.discard.seat);
     return next;
   }
 
@@ -185,6 +191,9 @@ function resolvePassAction(state: RiichiMatchState, seat: RiichiSeat): RiichiMat
   const window = next.claimWindow as RiichiClaimWindow;
   log(next, { seat, type: "pass", tile: window.discard.tile }, next.players[seat].isBot ? "bot" : "player");
   next.eventLog = [...next.eventLog, `${next.players[seat].name} passed on ${window.discard.tile}.`];
+  if (window.offers.some((offer) => offer.seat === seat && offer.type === "win")) {
+    next.players[seat].furiten = "temporary";
+  }
   next.claimWindow = null;
   continueAfterUnclaimedDiscard(next, window.discard.seat);
   return next;
@@ -218,13 +227,13 @@ function declareRiichi(state: RiichiMatchState, action: RiichiActionInput): void
   discardAndMaybeOpenClaimWindow(state, { ...action, type: "discard", tile: action.tile ?? player.hand.at(-1) });
 }
 
-function completeWin(state: RiichiMatchState, seat: RiichiSeat, tile?: RiichiTile): void {
+function completeWin(state: RiichiMatchState, seat: RiichiSeat, tile?: RiichiTile, winBy: WinBy = "tsumo", payerSeat?: RiichiSeat): void {
   const winner = state.players[seat];
   const winningTile = tile ?? winner.hand.at(-1);
   if (!winningTile) throw new Error("Win requires a winning tile.");
   state.phase = "complete";
-  state.eventLog = [...state.eventLog, `${winner.name} won the hand.`];
-  log(state, { seat, type: "win", tile: winningTile }, "player");
+  state.eventLog = [...state.eventLog, winBy === "ron" ? `${winner.name} won by Ron on ${winningTile}.` : `${winner.name} won by Tsumo.`];
+  log(state, { seat, type: "win", tile: winningTile, winBy, payerSeat }, "player");
 }
 
 function buildLocalClaimWindow(state: RiichiMatchState, discard: { seat: RiichiSeat; tile: RiichiTile }): RiichiClaimWindow | null {
@@ -232,9 +241,14 @@ function buildLocalClaimWindow(state: RiichiMatchState, discard: { seat: RiichiS
   if (discard.seat === localSeat) return null;
 
   const localPlayer = state.players[localSeat];
-  if (localPlayer.riichi) return null;
-
   const offers: RiichiActionOffer[] = [];
+
+  if (canClaimRon(state, localSeat, discard.tile)) {
+    offers.push({ seat: localSeat, type: "win", tile: discard.tile });
+  }
+
+  if (localPlayer.riichi) return offers.length > 0 ? { discard, offers } : null;
+
   const count = localPlayer.hand.filter((tile) => tile === discard.tile).length;
 
   if (count >= 3) {
@@ -250,6 +264,36 @@ function buildLocalClaimWindow(state: RiichiMatchState, discard: { seat: RiichiS
   }
 
   return offers.length > 0 ? { discard, offers } : null;
+}
+
+function canClaimRon(state: RiichiMatchState, seat: RiichiSeat, tile: RiichiTile): boolean {
+  const player = state.players[seat];
+  let waits: RiichiTile[];
+  try {
+    waits = winningTiles(player.hand, player.melds);
+  } catch {
+    return false;
+  }
+  if (!waits.includes(tile) || !canRon(player, waits)) return false;
+
+  try {
+    return scoreRiichiHand({
+      hand: [...player.hand, tile],
+      melds: player.melds,
+      winningTile: tile,
+      winBy: "ron",
+      riichi: player.riichi,
+      doubleRiichi: player.doubleRiichi,
+      ippatsu: player.ippatsu,
+      doraIndicators: state.doraIndicators,
+      uraDoraIndicators: state.uraDoraIndicators,
+      kanDoraIndicators: state.kanDoraIndicators,
+      seatWind: seatWinds[seat],
+      roundWind: state.context.roundWind,
+    }).legal;
+  } catch {
+    return false;
+  }
 }
 
 function claimSequenceFor(hand: readonly RiichiTile[], tile: RiichiTile): RiichiTile[] | null {
@@ -364,14 +408,19 @@ function cloneState(state: RiichiMatchState): RiichiMatchState {
   };
 }
 
-function log(state: RiichiMatchState, action: RiichiActionInput, source: "player" | "bot" | "system", overrideType?: string): void {
+function log(state: RiichiMatchState, action: RiichiLogAction, source: "player" | "bot" | "system", overrideType?: string): void {
+  const payload: JsonObject = {
+    ...(action.tile ? { tile: action.tile } : {}),
+    ...(action.winBy ? { winBy: action.winBy } : {}),
+    ...(typeof action.payerSeat === "number" ? { payerSeat: action.payerSeat } : {}),
+  };
   state.auditLog = appendMatchEvent(state.auditLog, {
     occurredAt: state.auditLog.length + 1,
     source,
     action: {
       type: overrideType ?? action.type,
       actorSeat: action.seat,
-      payload: action.tile ? { tile: action.tile } : undefined,
+      payload: Object.keys(payload).length > 0 ? payload : undefined,
     },
   });
 }
