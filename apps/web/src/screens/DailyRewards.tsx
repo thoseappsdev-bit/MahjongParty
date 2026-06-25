@@ -19,6 +19,26 @@ function DailyCardHeader({ icon: Icon, title, detail }: { icon: LucideIcon; titl
   );
 }
 
+function SpinWheelPreview({ spinning }: { spinning: boolean }) {
+  const wedges = ["Coins", "Gems", "Coins", "Fragment", "Coins", "Gems"];
+  return (
+    <div className={`spin-wheel ${spinning ? "is-spinning" : ""}`} aria-hidden="true">
+      <div className="spin-wheel-pointer" />
+      <div className="spin-wheel-face">
+        {wedges.map((label, index) => (
+          <span key={`${label}-${index}`} style={{ transform: `rotate(${index * 60}deg)` }}>
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function DailyRewards({
   bonusClaims,
   dailyClaimed,
@@ -41,14 +61,16 @@ export function DailyRewards({
   streakDays: DailyStreakDay[];
   onClaim: (rewardId: string, turnstileToken: string) => void;
   onMissionClaim: (missionId: string, turnstileToken: string) => void;
-  onSpin: (turnstileToken: string) => void;
-  onRewardAd: () => void;
+  onSpin: (turnstileToken: string) => Promise<void>;
+  onRewardAd: () => Promise<void>;
 }) {
   const dailyReward = rewards.find((reward) => reward.id === "daily-login") ?? rewards[0];
   const bonusCap = 3;
   const bonusUsed = bonusClaims >= bonusCap;
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [spinState, setSpinState] = useState<"idle" | "spinning">("idle");
+  const [bonusState, setBonusState] = useState<"idle" | "claiming">("idle");
   const economyMutationBlocked = Boolean(turnstileSiteKey && !turnstileToken);
 
   function consumeTurnstileToken(): string | null {
@@ -69,9 +91,26 @@ export function DailyRewards({
     if (token !== null) onMissionClaim(missionId, token);
   }
 
-  function spin() {
+  async function spin() {
     const token = consumeTurnstileToken();
-    if (token !== null) onSpin(token);
+    if (token === null) return;
+    setSpinState("spinning");
+    try {
+      await wait(900);
+      await onSpin(token);
+    } finally {
+      setSpinState("idle");
+    }
+  }
+
+  async function claimBonus() {
+    setBonusState("claiming");
+    try {
+      await wait(650);
+      await onRewardAd();
+    } finally {
+      setBonusState("idle");
+    }
   }
 
   return (
@@ -108,13 +147,14 @@ export function DailyRewards({
         </Panel>
         <Panel className="daily-card">
           <DailyCardHeader icon={Sparkles} title="Lucky Draw" detail={t(locale, "daily.odds")} />
+          <SpinWheelPreview spinning={spinState === "spinning"} />
           <p>{t(locale, "daily.spinDetail")}</p>
           <div className="odds-list" aria-label={t(locale, "daily.odds")}>
             <span>Coins 72%</span>
             <span>Gems 18%</span>
             <span>Cosmetic fragment 10%</span>
           </div>
-          <Button disabled={spinUsed || economyMutationBlocked} tone="secondary" onClick={spin}>
+          <Button disabled={spinUsed || economyMutationBlocked || spinState === "spinning"} tone="secondary" onClick={spin}>
             {spinUsed ? t(locale, "common.claimed") : t(locale, "daily.spin")}
           </Button>
         </Panel>
@@ -125,8 +165,9 @@ export function DailyRewards({
             detail={formatT(locale, "daily.bonusUsed", { used: bonusClaims, cap: bonusCap })}
           />
           <p>{t(locale, "daily.adDetail")}</p>
-          <Button disabled={bonusUsed} tone="ghost" onClick={onRewardAd}>
-            {t(locale, "daily.watchAd")}
+          {bonusState === "claiming" ? <div className="bonus-progress" aria-live="polite">{t(locale, "daily.bonusProgress")}</div> : null}
+          <Button disabled={bonusUsed || bonusState === "claiming"} tone="ghost" onClick={claimBonus}>
+            {bonusState === "claiming" ? t(locale, "daily.bonusProgress") : t(locale, "daily.watchAd")}
           </Button>
         </Panel>
       </div>

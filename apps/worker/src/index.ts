@@ -895,7 +895,7 @@ async function handleEconomyRequest(request: Request, segments: string[], env: E
     }
 
     if (request.method === "POST" && segments[2] === "ad" && segments[3] === "reward") {
-      return json({ error: "Rewarded ads are not enabled" }, 501);
+      return json(await economyService.rewardAd(userId));
     }
 
     if (request.method === "POST" && segments[2] === "spin") {

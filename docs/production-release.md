@@ -103,7 +103,7 @@ FAL_AI_API_KEY
 
 ## Disabled Monetization Paths
 
-Real-money purchase verification and rewarded-ad fulfillment are intentionally disabled for this release. Do not advertise either feature as functional and do not add a secret or environment flag to bypass that restriction.
+Real-money purchase verification is intentionally disabled for this release. Rewarded-ad network fulfillment is also disabled; the current `/api/economy/ad/reward` path is only a capped launch bonus and must not be advertised as a watched ad. Do not add a secret or environment flag to bypass real purchase verification.
 
 Before enabling purchases, implement provider receipt verification, idempotent fulfillment, refunds/reversals, fraud controls, and sandbox-to-production tests. Before enabling rewarded ads, integrate an ad provider with server-verifiable completion callbacks, replay protection, rate limits, and abuse monitoring. Client assertions alone must never grant Coins or Gems.
 

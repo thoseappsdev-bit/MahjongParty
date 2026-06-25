@@ -90,6 +90,11 @@ import {
   discordActivityUnavailable,
   type DiscordActivityState,
 } from "./discord/discordActivity";
+import {
+  connectTelegramMiniApp,
+  telegramMiniAppUnavailable,
+  type TelegramMiniAppState,
+} from "./telegram/telegramMiniApp";
 
 
 type AuthStatus = "checking" | "guest" | "signed-in" | "offline" | "error";
@@ -149,7 +154,7 @@ export function App() {
   const [dailyClaimed, setDailyClaimed] = useState(false);
   const [dailyBonusClaims, setDailyBonusClaims] = useState(0);
   const [dailySpinUsed, setDailySpinUsed] = useState(false);
-  const [shopCatalog, setShopCatalog] = useState(catalog.filter((item) => item.kind !== "gem-pack"));
+  const [shopCatalog, setShopCatalog] = useState(catalog);
   const [toast, setToast] = useState<string | null>(null);
   const [lanApiBase] = useState(() => defaultLanApiBase());
   const [lanSession, setLanSession] = useState<LanSession | null>(null);
@@ -157,6 +162,7 @@ export function App() {
   const [lanAuditMessages, setLanAuditMessages] = useState<string[] | null>(null);
   const [lanWebUrl, setLanWebUrl] = useState<string | null>(null);
   const [discordActivity, setDiscordActivity] = useState<DiscordActivityState>(discordActivityUnavailable);
+  const [telegramMiniApp, setTelegramMiniApp] = useState<TelegramMiniAppState>(telegramMiniAppUnavailable);
   const practiceStateRef = useRef<PracticeMatchState | null>(null);
   const matchEngineStateRef = useRef<MatchState | null>(null);
   const riichiEngineStateRef = useRef<riichi.RiichiMatchState | null>(null);
@@ -171,8 +177,16 @@ export function App() {
             avatar: discordActivity.user.avatar,
             locale,
           }
-        : { ...profile, userId: playerId, locale },
-    [discordActivity.user, locale, playerId],
+        : telegramMiniApp.user
+          ? {
+              ...profile,
+              userId: playerId,
+              displayName: telegramMiniApp.user.displayName,
+              avatar: telegramMiniApp.user.avatar,
+              locale,
+            }
+          : { ...profile, userId: playerId, locale },
+    [discordActivity.user, locale, playerId, telegramMiniApp.user],
   );
 
   function applyAuthProfile(nextProfile: AuthProfile | null) {
@@ -406,6 +420,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    setTelegramMiniApp(connectTelegramMiniApp());
+  }, []);
+
+  useEffect(() => {
     getLanHealth(lanApiBase)
       .then((health) => {
         const fallbackUrl = typeof window === "undefined" ? null : window.location.origin;
@@ -417,7 +435,10 @@ export function App() {
 
   useEffect(() => {
     getBackendCatalog(lanApiBase)
-      .then((items) => setShopCatalog([...items.coinPacks, ...items.cosmetics]))
+      .then((items) => {
+        const disabledGemPacks = catalog.filter((item) => item.kind === "gem-pack");
+        setShopCatalog([...disabledGemPacks, ...items.gemPacks, ...items.coinPacks, ...items.cosmetics]);
+      })
       .catch(() => undefined);
   }, [lanApiBase]);
 
@@ -942,13 +963,13 @@ export function App() {
       recordDailyMission({ type: "win-with-pong" });
     }
   }
-  function handleSpinWheel(turnstileToken: string) {
+  function handleSpinWheel(turnstileToken: string): Promise<void> {
     if (dailySpinUsed) {
       showToast("Lucky Draw already used today.");
-      return;
+      return Promise.resolve();
     }
 
-    spinWheelFromBackend(lanApiBase, activeProfile.userId, turnstileToken)
+    return spinWheelFromBackend(lanApiBase, activeProfile.userId, turnstileToken)
       .then((response) => {
         setWallet(response.wallet);
         setDailySpinUsed(true);
@@ -963,8 +984,8 @@ export function App() {
       });
   }
 
-  function handleRewardAd() {
-    rewardAdFromBackend(lanApiBase, activeProfile.userId)
+  function handleRewardAd(): Promise<void> {
+    return rewardAdFromBackend(lanApiBase, activeProfile.userId)
       .then((response) => {
         setWallet(response.wallet);
         setDailyBonusClaims((count) => Math.min(3, count + 1));
@@ -1014,6 +1035,7 @@ export function App() {
         lanWebUrl={lanWebUrl}
         locale={locale}
         profile={activeProfile}
+        telegramMiniApp={telegramMiniApp}
         tables={publicTables}
         onCreate={() => setRoute("create")}
         onDiscordRoom={handleDiscordRoom}
@@ -1074,7 +1096,7 @@ export function App() {
         onRematch={practiceMode === "tutorial" ? (tutorialRuleset === "riichi" ? handleStartRiichiTutorial : handleStartTutorial) : isPractice ? handleStartPractice : handleRematch}
       />
     ),
-    shop: <Shop locale={locale} catalog={shopCatalog} wallet={wallet} onBuy={handleBuy} />,
+    shop: <Shop locale={locale} catalog={shopCatalog} purchasesEnabled={false} wallet={wallet} onBuy={handleBuy} />,
     daily: (
       <DailyRewards
         bonusClaims={dailyBonusClaims}
@@ -1134,6 +1156,7 @@ export function App() {
     </div>
   );
 }
+
 
 
 

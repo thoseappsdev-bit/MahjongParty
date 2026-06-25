@@ -1,10 +1,11 @@
 import { Button, TableCard } from "@mahjong/ui";
 import { t } from "@mahjong/i18n";
-import { Gamepad2, Lock, Plus, Router, Users } from "lucide-react";
+import { Gamepad2, Lock, Plus, Router, Send, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { bankrollReserveFor } from "@mahjong/shared-types";
 import type { LocaleCode, Profile, PublicTable, TableConfig } from "@mahjong/shared-types";
 import type { DiscordActivityState } from "../discord/discordActivity";
+import type { TelegramMiniAppState } from "../telegram/telegramMiniApp";
 import { defaultTableConfig } from "../mock/mockData";
 import { TurnstileWidget } from "../turnstile/TurnstileWidget";
 
@@ -15,6 +16,7 @@ export function PlayTablesHub({
   lanWebUrl,
   locale,
   profile,
+  telegramMiniApp,
   tables,
   onCreate,
   onDiscordRoom,
@@ -27,6 +29,7 @@ export function PlayTablesHub({
   lanWebUrl?: string | null;
   locale: LocaleCode;
   profile: Profile;
+  telegramMiniApp: TelegramMiniAppState;
   tables: PublicTable[];
   onCreate: () => void;
   onDiscordRoom: (displayName: string, turnstileToken: string) => void;
@@ -169,6 +172,26 @@ export function PlayTablesHub({
           </div>
           {discordActivity.error ? <p className="friend-room-warning">{discordActivity.error}</p> : null}
         </TableCard>
+
+        <TableCard
+          title={t(locale, "play.telegramRoom")}
+          meta={telegramStatusText(locale, telegramMiniApp)}
+          action={
+            <Button disabled tone={telegramMiniApp.status === "ready" ? "secondary" : "ghost"}>
+              {telegramMiniApp.status === "ready" ? t(locale, "play.telegramReadyButton") : t(locale, "play.telegramUnavailable")}
+            </Button>
+          }
+        >
+          <div className="table-meta-row">
+            <span>
+              <Send size={16} />
+              {telegramMiniApp.status === "ready"
+                ? t(locale, "play.telegramLaunchReady")
+                : t(locale, "play.telegramLaunchHint")}
+            </span>
+          </div>
+          {telegramMiniApp.error ? <p className="friend-room-warning">{telegramMiniApp.error}</p> : null}
+        </TableCard>
       </div>
 
       <div className="table-grid">
@@ -176,7 +199,7 @@ export function PlayTablesHub({
           <TableCard
             key={table.id}
             title={table.title}
-            meta={`${tableModeLabel(table.mode)} · ${table.host}`}
+            meta={`${tableModeLabel(table.mode)} - ${table.host}`}
             action={
               <Button
                 tone={table.tableType === "coin" ? "secondary" : "primary"}
@@ -214,6 +237,19 @@ export function PlayTablesHub({
   );
 }
 
+function telegramStatusText(locale: LocaleCode, telegramMiniApp: TelegramMiniAppState): string {
+  if (telegramMiniApp.status === "ready" && telegramMiniApp.user) {
+    return `${t(locale, "play.telegramDetected")} ${telegramMiniApp.user.displayName}`;
+  }
+  if (telegramMiniApp.status === "ready") {
+    return t(locale, "play.telegramReady");
+  }
+  if (telegramMiniApp.status === "error") {
+    return telegramMiniApp.error ?? t(locale, "play.telegramUnavailable");
+  }
+  return t(locale, "play.telegramLaunchHint");
+}
+
 function discordStatusText(locale: LocaleCode, discordActivity: DiscordActivityState): string {
   if (discordActivity.status === "authenticated" && discordActivity.user) {
     return `${t(locale, "play.discordSignedIn")} ${discordActivity.user.displayName}`;
@@ -236,3 +272,4 @@ function tableModeLabel(mode: PublicTable["mode"]): string {
   }
   return mode === "3-fan" ? "Old Hong Kong 3 Fan" : "Old Hong Kong 1 Fan";
 }
+

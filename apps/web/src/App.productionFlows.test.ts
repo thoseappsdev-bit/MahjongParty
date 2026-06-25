@@ -13,7 +13,8 @@ describe("production table flow boundaries", () => {
   it("waits for verified auth before loading private economy data", () => {
     const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
 
-    expect(source).toContain('useState(catalog.filter((item) => item.kind !== "gem-pack"))');
+    expect(source).toContain("useState(catalog)");
+    expect(source).toContain("purchasesEnabled={false}");
     expect(source).toContain("if (!authProfile) {");
     expect(source).toContain("getBackendWallet(lanApiBase, authProfile.userId)");
     expect(source).toContain("getDailyMissionsFromBackend(lanApiBase, authProfile.userId)");

@@ -140,7 +140,7 @@ check("production economy and paid-table surfaces fail closed", () => {
     'Persistent economy is not configured',
     'Mission progress is recorded by authoritative matches',
     'recordMissionProgressForSnapshotIfNeeded',
-    'Rewarded ads are not enabled',
+    'return json(await economyService.rewardAd(userId));',
     'Store purchase verification is not enabled',
     '{ ...catalog, gemPacks: [] }',
   ]) {

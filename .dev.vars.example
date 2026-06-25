@@ -10,6 +10,7 @@ DEV_AUTH_BYPASS=1
 # SUPABASE_SERVICE_ROLE_KEY=
 # SUPABASE_JWT_SECRET=
 # DISCORD_CLIENT_SECRET=
+# TELEGRAM_BOT_TOKEN=
 
 # Optional server-side Discord Activity Instance API validation.
 # DISCORD_BOT_TOKEN=
@@ -19,6 +20,7 @@ DEV_AUTH_BYPASS=1
 #   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 #   npx wrangler secret put SUPABASE_JWT_SECRET
 #   npx wrangler secret put DISCORD_CLIENT_SECRET
+#   npx wrangler secret put TELEGRAM_BOT_TOKEN
 
 # Purchase verification and rewarded-ad fulfillment are intentionally
 # disabled; no local or production variable enables either feature.

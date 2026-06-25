@@ -75,11 +75,21 @@ describe("Cloudflare economy routes", () => {
     });
   });
 
-  it("does not expose unverified reward, purchase, mission-progress, or direct buy-in mutations", async () => {
+  it("allows capped launch bonus but blocks unverified purchase, mission-progress, and direct buy-in mutations", async () => {
     const env = fakeEnv();
     const userId = "11111111-1111-4111-8111-111111111111";
+    const bonus = await worker.fetch(
+      new Request("https://mahjong.example.com/api/economy/ad/reward", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-user-id": userId },
+        body: JSON.stringify({}),
+      }),
+      env,
+    );
+    expect(bonus.status).toBe(200);
+    await expect(bonus.json()).resolves.toMatchObject({ reward: { type: "coins" } });
+
     const routes = [
-      ["/api/economy/ad/reward", {}, 501],
       ["/api/economy/purchase/verify", { packId: "gems-test-small" }, 501],
       ["/api/economy/daily/missions/progress", { event: { type: "play" } }, 403],
       ["/api/economy/table/buy-in", { amount: 2_000 }, 404],
