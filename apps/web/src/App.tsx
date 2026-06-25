@@ -388,6 +388,7 @@ export function App() {
       isPractice ||
       !riichiEngineState ||
       riichiEngineState.phase !== "playing" ||
+      !!riichiEngineState.claimWindow ||
       !riichiEngineState.players[riichiEngineState.turnSeat].isBot
     ) {
       return;
@@ -395,7 +396,7 @@ export function App() {
 
     const botTimer = window.setTimeout(() => {
       const currentMatch = riichiEngineStateRef.current;
-      if (!currentMatch || currentMatch.phase !== "playing" || !currentMatch.players[currentMatch.turnSeat].isBot) {
+      if (!currentMatch || currentMatch.phase !== "playing" || currentMatch.claimWindow || !currentMatch.players[currentMatch.turnSeat].isBot) {
         return;
       }
 
@@ -762,8 +763,8 @@ export function App() {
 
     const currentRiichiMatch = riichiEngineStateRef.current;
     if (currentRiichiMatch) {
-      if (intent.type !== "discard" && intent.type !== "win") {
-        showToast("Riichi Beta supports discard and self-draw win first.");
+      if (intent.type === "emote") {
+        showToast("Emote sent.");
         return;
       }
       const riichiTile = intent.tile && riichi.isRiichiTile(intent.tile) ? intent.tile : undefined;

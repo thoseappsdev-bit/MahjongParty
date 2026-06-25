@@ -35,6 +35,20 @@ describe("riichi engine adapter", () => {
     expect(riichiStateToView(state).myHand).toEqual(["m1", "m2", "p1", "p9", "s1", "s9", "we", "dr"]);
   });
 
+
+  it("shows a Riichi Chi claim for P4 before the local draw", () => {
+    const state = riichi.createRiichiMatchState("web-riichi-p4-claim");
+    state.turnSeat = 3;
+    state.players[0].hand = ["m1", "m2", "m3", "p5", "p6", "s1", "s2", "s3", "s4", "s5", "s6", "we", "we"];
+    state.players[3].hand = ["p4", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+
+    const claimState = riichi.resolveRiichiAction(state, { seat: 3, type: "discard", tile: "p4" });
+    const view = riichiStateToView(claimState);
+
+    expect(view.legalActions).toEqual(["chi"]);
+    expect(view.claimPrompt).toBe("Dewi Bot discarded P4. Chi is available.");
+  });
+
   it("does not offer Win for an invalid Riichi shape even when yaku-like tiles are present", () => {
     const state = riichi.createRiichiMatchState("web-riichi-no-false-win");
     state.players[0].hand = ["m2", "m3", "m5", "m6", "p2", "p4", "p5", "p7", "s2", "s3", "s5", "s6", "s8", "s9"];

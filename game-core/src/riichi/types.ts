@@ -18,6 +18,7 @@ export interface RiichiActionOffer {
   seat: RiichiSeat;
   type: RiichiActionType;
   tile?: RiichiTile;
+  tiles?: RiichiTile[];
   discardChoices?: RiichiTile[];
 }
 
@@ -52,6 +53,11 @@ export interface RiichiMatchContext {
   riichiSticks: number;
 }
 
+export interface RiichiClaimWindow {
+  discard: { seat: RiichiSeat; tile: RiichiTile };
+  offers: RiichiActionOffer[];
+}
+
 export interface RiichiMatchState {
   mode: "riichi";
   phase: RiichiPhase;
@@ -64,7 +70,7 @@ export interface RiichiMatchState {
   uraDoraIndicators: RiichiTile[];
   kanDoraIndicators: RiichiTile[];
   players: [RiichiPlayerState, RiichiPlayerState, RiichiPlayerState, RiichiPlayerState];
-  claimWindow: null;
+  claimWindow: RiichiClaimWindow | null;
   result: null;
   eventLog: string[];
   auditLog: MatchEvent[];

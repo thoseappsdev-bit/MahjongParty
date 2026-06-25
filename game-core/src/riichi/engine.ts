@@ -1,6 +1,6 @@
 import { appendMatchEvent, type MatchEvent } from "../action-log";
 import { buildRiichiWall, type RiichiTile } from "./tiles";
-import type { RiichiActionInput, RiichiMatchState, RiichiPlayerState, RiichiSeat } from "./types";
+import type { RiichiActionInput, RiichiActionOffer, RiichiClaimWindow, RiichiMatchState, RiichiPlayerState, RiichiSeat } from "./types";
 
 export interface CreateRiichiMatchOptions {
   playerNames?: readonly [string, string, string, string];
@@ -10,7 +10,8 @@ export interface CreateRiichiMatchOptions {
 const seats = [0, 1, 2, 3] as const;
 const defaultNames = ["Lina", "Bo Bot", "Chen Bot", "Dewi Bot"] as const;
 const defaultAvatars = ["L", "B", "C", "D"] as const;
-const DECISION_TYPES = new Set<string>(["discard", "riichi", "win", "pass"]);
+const DECISION_TYPES = new Set<string>(["discard", "chi", "pong", "kong", "riichi", "win", "pass"]);
+const suits = ["m", "p", "s"] as const;
 
 export function createRiichiMatchState(seed: string, options: CreateRiichiMatchOptions = {}): RiichiMatchState {
   const shuffled = shuffle(buildRiichiWall(), seed);
@@ -48,6 +49,11 @@ export function createRiichiMatchState(seed: string, options: CreateRiichiMatchO
 
 export function resolveRiichiAction(state: RiichiMatchState, action: RiichiActionInput): RiichiMatchState {
   if (state.phase === "complete") return cloneState(state);
+
+  if (state.claimWindow) {
+    return resolveClaimAction(state, action);
+  }
+
   if (action.seat !== state.turnSeat && action.type !== "pass") {
     throw new Error("It is not that seat's turn.");
   }
@@ -62,7 +68,7 @@ export function resolveRiichiAction(state: RiichiMatchState, action: RiichiActio
     return next;
   }
   if (action.type === "discard") {
-    discardAndAdvance(next, action);
+    discardAndMaybeOpenClaimWindow(next, action);
     return next;
   }
   if (action.type === "win") {
@@ -91,7 +97,7 @@ export function replayRiichiMatch(seed: string, decisions: readonly RiichiAction
   return state;
 }
 
-function discardAndAdvance(state: RiichiMatchState, action: RiichiActionInput): void {
+function discardAndMaybeOpenClaimWindow(state: RiichiMatchState, action: RiichiActionInput): void {
   const tile = action.tile;
   if (!tile) throw new Error("Discard requires a tile.");
   const player = state.players[action.seat];
@@ -103,18 +109,101 @@ function discardAndAdvance(state: RiichiMatchState, action: RiichiActionInput): 
   player.ippatsu = false;
   log(state, action, "player");
 
-  if (state.liveWall.length === 0) {
-    state.phase = "complete";
-    state.eventLog = [...state.eventLog, "The wall is exhausted."];
-    log(state, { seat: action.seat, type: "pass" }, "system", "exhaustive-draw");
+  state.eventLog = [...state.eventLog, `${player.name} discarded ${tile}.`];
+  state.claimWindow = buildLocalClaimWindow(state, { seat: action.seat, tile });
+  if (state.claimWindow) {
+    state.eventLog = [...state.eventLog, `Claim window opened for ${tile}.`];
+    log(state, { seat: 0, type: "pass", tile }, "system", "claim-window");
     return;
   }
 
-  const nextSeat = ((action.seat + 1) % 4) as RiichiSeat;
+  continueAfterUnclaimedDiscard(state, action.seat);
+}
+
+function resolveClaimAction(state: RiichiMatchState, action: RiichiActionInput): RiichiMatchState {
+  if (action.type === "pass") {
+    return resolvePassAction(state, action.seat);
+  }
+
+  const offer = state.claimWindow?.offers.find((claim) => claim.seat === action.seat && claim.type === action.type);
+  if (!offer || !state.claimWindow) {
+    const next = cloneState(state);
+    next.eventLog = [...next.eventLog, "That Riichi claim is not available right now."];
+    return next;
+  }
+
+  if (offer.type === "win") {
+    const next = cloneState(state);
+    const tile = offer.tile ?? next.claimWindow?.discard.tile;
+    if (tile) {
+      next.players[offer.seat].hand = [...next.players[offer.seat].hand, tile];
+    }
+    next.claimWindow = null;
+    completeWin(next, offer.seat, tile);
+    return next;
+  }
+
+  const next = cloneState(state);
+  const window = next.claimWindow as RiichiClaimWindow;
+  const player = next.players[offer.seat];
+  const tile = offer.tile ?? window.discard.tile;
+  log(next, { seat: offer.seat, type: offer.type, tile }, player.isBot ? "bot" : "player");
+  removeLastDiscard(next.players[window.discard.seat], tile);
+
+  if (offer.type === "chi") {
+    const sequence = offer.tiles ?? claimSequenceFor(player.hand, tile);
+    if (!sequence) {
+      return { ...state, eventLog: [...state.eventLog, "Chi is no longer available."] };
+    }
+    player.hand = removeTiles(player.hand, sequence.filter((heldTile) => heldTile !== tile));
+    player.melds = [...player.melds, { kind: "chow", tiles: [...sequence], open: true, calledTile: tile, fromSeat: window.discard.seat }];
+  }
+
+  if (offer.type === "pong") {
+    player.hand = removeTiles(player.hand, [tile, tile]);
+    player.melds = [...player.melds, { kind: "pung", tiles: [tile, tile, tile], open: true, calledTile: tile, fromSeat: window.discard.seat }];
+  }
+
+  if (offer.type === "kong") {
+    player.hand = removeTiles(player.hand, [tile, tile, tile]);
+    player.melds = [...player.melds, { kind: "kong", tiles: [tile, tile, tile, tile], open: true, calledTile: tile, fromSeat: window.discard.seat }];
+    drawReplacementFromDeadWall(next, offer.seat);
+  }
+
+  next.claimWindow = null;
+  if (next.phase !== "complete") {
+    next.turnSeat = offer.seat;
+  }
+  next.eventLog = [...next.eventLog, `${player.name} claimed ${offer.type.toUpperCase()} on ${tile}.`];
+  return next;
+}
+
+function resolvePassAction(state: RiichiMatchState, seat: RiichiSeat): RiichiMatchState {
+  if (!state.claimWindow) return cloneState(state);
+
+  const next = cloneState(state);
+  const window = next.claimWindow as RiichiClaimWindow;
+  log(next, { seat, type: "pass", tile: window.discard.tile }, next.players[seat].isBot ? "bot" : "player");
+  next.eventLog = [...next.eventLog, `${next.players[seat].name} passed on ${window.discard.tile}.`];
+  next.claimWindow = null;
+  continueAfterUnclaimedDiscard(next, window.discard.seat);
+  return next;
+}
+
+function continueAfterUnclaimedDiscard(state: RiichiMatchState, discardSeat: RiichiSeat): void {
+  if (state.liveWall.length === 0) {
+    state.phase = "complete";
+    state.eventLog = [...state.eventLog, "The wall is exhausted."];
+    log(state, { seat: discardSeat, type: "pass" }, "system", "exhaustive-draw");
+    return;
+  }
+
+  const nextSeat = nextSeatOf(discardSeat);
   const drawnTile = drawRaw(state.liveWall);
   state.players[nextSeat].hand = [...state.players[nextSeat].hand, drawnTile];
+  state.players[nextSeat].furiten = state.players[nextSeat].furiten === "temporary" ? "none" : state.players[nextSeat].furiten;
   state.turnSeat = nextSeat;
-  state.eventLog = [...state.eventLog, `${player.name} discarded ${tile}.`, `${state.players[nextSeat].name} drew from the wall.`];
+  state.eventLog = [...state.eventLog, `${state.players[nextSeat].name} drew from the wall.`];
   log(state, { seat: nextSeat, type: "discard", tile: drawnTile }, "system", "draw");
 }
 
@@ -126,7 +215,7 @@ function declareRiichi(state: RiichiMatchState, action: RiichiActionInput): void
   player.ippatsu = true;
   state.context = { ...state.context, riichiSticks: state.context.riichiSticks + 1 };
   log(state, action, "player");
-  discardAndAdvance(state, { ...action, type: "discard", tile: action.tile ?? player.hand.at(-1) });
+  discardAndMaybeOpenClaimWindow(state, { ...action, type: "discard", tile: action.tile ?? player.hand.at(-1) });
 }
 
 function completeWin(state: RiichiMatchState, seat: RiichiSeat, tile?: RiichiTile): void {
@@ -136,6 +225,100 @@ function completeWin(state: RiichiMatchState, seat: RiichiSeat, tile?: RiichiTil
   state.phase = "complete";
   state.eventLog = [...state.eventLog, `${winner.name} won the hand.`];
   log(state, { seat, type: "win", tile: winningTile }, "player");
+}
+
+function buildLocalClaimWindow(state: RiichiMatchState, discard: { seat: RiichiSeat; tile: RiichiTile }): RiichiClaimWindow | null {
+  const localSeat = 0 as RiichiSeat;
+  if (discard.seat === localSeat) return null;
+
+  const localPlayer = state.players[localSeat];
+  if (localPlayer.riichi) return null;
+
+  const offers: RiichiActionOffer[] = [];
+  const count = localPlayer.hand.filter((tile) => tile === discard.tile).length;
+
+  if (count >= 3) {
+    offers.push({ seat: localSeat, type: "kong", tile: discard.tile, tiles: [discard.tile, discard.tile, discard.tile, discard.tile] });
+  }
+  if (count >= 2) {
+    offers.push({ seat: localSeat, type: "pong", tile: discard.tile, tiles: [discard.tile, discard.tile, discard.tile] });
+  }
+
+  const chiSequence = nextSeatOf(discard.seat) === localSeat ? claimSequenceFor(localPlayer.hand, discard.tile) : null;
+  if (chiSequence) {
+    offers.push({ seat: localSeat, type: "chi", tile: discard.tile, tiles: chiSequence });
+  }
+
+  return offers.length > 0 ? { discard, offers } : null;
+}
+
+function claimSequenceFor(hand: readonly RiichiTile[], tile: RiichiTile): RiichiTile[] | null {
+  const suit = tile[0];
+  const rank = Number(tile.slice(1));
+  if (!suits.includes(suit as (typeof suits)[number]) || !Number.isInteger(rank)) {
+    return null;
+  }
+
+  const candidates = [
+    [rank - 2, rank - 1, rank],
+    [rank - 1, rank, rank + 1],
+    [rank, rank + 1, rank + 2],
+  ];
+
+  for (const ranks of candidates) {
+    if (ranks.some((candidate) => candidate < 1 || candidate > 9)) continue;
+    const sequence = ranks.map((candidate) => `${suit}${candidate}` as RiichiTile);
+    const needed = sequence.filter((candidate) => candidate !== tile);
+    if (containsTiles(hand, needed)) {
+      return sequence;
+    }
+  }
+
+  return null;
+}
+
+function containsTiles(hand: readonly RiichiTile[], needed: readonly RiichiTile[]): boolean {
+  const counts = new Map<RiichiTile, number>();
+  for (const tile of hand) counts.set(tile, (counts.get(tile) ?? 0) + 1);
+  for (const tile of needed) {
+    const remaining = counts.get(tile) ?? 0;
+    if (remaining <= 0) return false;
+    counts.set(tile, remaining - 1);
+  }
+  return true;
+}
+
+function removeTiles(hand: readonly RiichiTile[], tiles: readonly RiichiTile[]): RiichiTile[] {
+  const next = [...hand];
+  for (const tile of tiles) {
+    const index = next.indexOf(tile);
+    if (index !== -1) next.splice(index, 1);
+  }
+  return next;
+}
+
+function removeLastDiscard(player: RiichiPlayerState, tile: RiichiTile): void {
+  const index = player.discards.lastIndexOf(tile);
+  if (index !== -1) {
+    player.discards = [...player.discards.slice(0, index), ...player.discards.slice(index + 1)];
+  }
+}
+
+function drawReplacementFromDeadWall(state: RiichiMatchState, seat: RiichiSeat): void {
+  const tile = state.deadWall.shift();
+  if (!tile) {
+    state.phase = "complete";
+    state.eventLog = [...state.eventLog, "The dead wall is exhausted."];
+    log(state, { seat, type: "pass" }, "system", "exhaustive-draw");
+    return;
+  }
+  state.players[seat].hand = [...state.players[seat].hand, tile];
+  state.eventLog = [...state.eventLog, `${state.players[seat].name} drew a kan replacement tile.`];
+  log(state, { seat, type: "discard", tile }, "system", "draw");
+}
+
+function nextSeatOf(seat: RiichiSeat): RiichiSeat {
+  return ((seat + 1) % 4) as RiichiSeat;
 }
 
 function createPlayer(seat: RiichiSeat, name: string): RiichiPlayerState {
@@ -164,6 +347,12 @@ function cloneState(state: RiichiMatchState): RiichiMatchState {
     doraIndicators: [...state.doraIndicators],
     uraDoraIndicators: [...state.uraDoraIndicators],
     kanDoraIndicators: [...state.kanDoraIndicators],
+    claimWindow: state.claimWindow
+      ? {
+          discard: { ...state.claimWindow.discard },
+          offers: state.claimWindow.offers.map((offer) => ({ ...offer, tiles: offer.tiles ? [...offer.tiles] : undefined })),
+        }
+      : null,
     players: state.players.map((player) => ({
       ...player,
       hand: [...player.hand],
@@ -175,7 +364,7 @@ function cloneState(state: RiichiMatchState): RiichiMatchState {
   };
 }
 
-function log(state: RiichiMatchState, action: RiichiActionInput, source: "player" | "system", overrideType?: string): void {
+function log(state: RiichiMatchState, action: RiichiActionInput, source: "player" | "bot" | "system", overrideType?: string): void {
   state.auditLog = appendMatchEvent(state.auditLog, {
     occurredAt: state.auditLog.length + 1,
     source,

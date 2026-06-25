@@ -50,7 +50,7 @@ export function riichiStateToView(state: RiichiMatchState, tableType: TableType 
     mySeat: 0,
     timerSeconds: state.turnSeat === 0 ? 25 : 8,
     wallCount: state.liveWall.length,
-    claimPrompt: riichiTutorialPrompt(state),
+    claimPrompt: riichiClaimPrompt(state) ?? riichiTutorialPrompt(state),
     legalActions: legalActionsForLocalPlayer(state),
     myHand: sortRiichiHandForView(state.players[0].hand),
     players: state.players.map((player) => ({
@@ -197,10 +197,36 @@ function riichiTutorialPrompt(state: RiichiMatchState): string | null {
 }
 
 function legalActionsForLocalPlayer(state: RiichiMatchState): LegalAction[] {
-  if (state.phase === "complete" || state.turnSeat !== 0) return [];
+  if (state.phase === "complete") return [];
+  if (state.claimWindow) {
+    return state.claimWindow.offers
+      .filter((offer) => offer.seat === 0 && isLegalAction(offer.type))
+      .map((offer) => offer.type as LegalAction);
+  }
+  if (state.turnSeat !== 0) return [];
   const actions: LegalAction[] = ["discard"];
   if (canLocalTsumo(state)) actions.unshift("win");
   return actions;
+}
+
+function riichiClaimPrompt(state: RiichiMatchState): string | null {
+  const localOffers = state.claimWindow?.offers.filter((offer) => offer.seat === 0) ?? [];
+  if (!state.claimWindow || localOffers.length === 0) return null;
+  const fromName = state.players[state.claimWindow.discard.seat].name;
+  const actions = localOffers.map((offer) => labelClaim(offer.type)).join(" / ");
+  return `${fromName} discarded ${state.claimWindow.discard.tile.toUpperCase()}. ${actions} is available.`;
+}
+
+function labelClaim(type: string): string {
+  if (type === "chi") return "Chi";
+  if (type === "pong") return "Pon";
+  if (type === "kong") return "Kan";
+  if (type === "win") return "Ron";
+  return type;
+}
+
+function isLegalAction(type: string): type is LegalAction {
+  return type === "chi" || type === "pong" || type === "kong" || type === "win" || type === "discard";
 }
 
 function canLocalTsumo(state: RiichiMatchState): boolean {

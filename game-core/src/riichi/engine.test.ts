@@ -49,6 +49,55 @@ describe("authoritative Riichi hand engine", () => {
     expect(replayed.liveWall).toEqual(state.liveWall);
   });
 
+
+  it("opens a local Chi window before drawing when the previous seat discards P4", () => {
+    const state = createRiichiMatchState("riichi-p4-claim");
+    state.turnSeat = 3;
+    state.players[0].hand = ["m1", "m2", "m3", "p5", "p6", "s1", "s2", "s3", "s4", "s5", "s6", "we", "we"];
+    state.players[3].hand = ["p4", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+    state.liveWall = ["m9"];
+
+    const next = resolveRiichiAction(state, { seat: 3, type: "discard", tile: "p4" });
+
+    expect(next.claimWindow?.discard).toEqual({ seat: 3, tile: "p4" });
+    expect(next.claimWindow?.offers).toContainEqual({ seat: 0, type: "chi", tile: "p4", tiles: ["p4", "p5", "p6"] });
+    expect(next.players[0].hand).not.toContain("m9");
+    expect(next.turnSeat).toBe(3);
+  });
+
+  it("lets the local player Chi a Riichi discard and then discard next", () => {
+    const state = createRiichiMatchState("riichi-p4-claim-resolve");
+    state.turnSeat = 3;
+    state.players[0].hand = ["m1", "m2", "m3", "p5", "p6", "s1", "s2", "s3", "s4", "s5", "s6", "we", "we"];
+    state.players[3].hand = ["p4", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+
+    const claimWindow = resolveRiichiAction(state, { seat: 3, type: "discard", tile: "p4" });
+    const claimed = resolveRiichiAction(claimWindow, { seat: 0, type: "chi", tile: "p4" });
+
+    expect(claimed.claimWindow).toBeNull();
+    expect(claimed.turnSeat).toBe(0);
+    expect(claimed.players[0].melds).toContainEqual({ kind: "chow", tiles: ["p4", "p5", "p6"], open: true, calledTile: "p4", fromSeat: 3 });
+    expect(claimed.players[0].hand).not.toContain("p5");
+    expect(claimed.players[0].hand).not.toContain("p6");
+    expect(claimed.players[3].discards).not.toContain("p4");
+  });
+
+  it("continues to the next draw when the local player passes a Riichi claim", () => {
+    const state = createRiichiMatchState("riichi-p4-pass");
+    state.turnSeat = 3;
+    state.players[0].hand = ["m1", "m2", "m3", "p5", "p6", "s1", "s2", "s3", "s4", "s5", "s6", "we", "we"];
+    state.players[3].hand = ["p4", "m1", "m2", "m3", "p1", "p2", "p3", "s1", "s2", "s3", "dr", "dr", "dg", "dg"];
+    state.liveWall = ["m9"];
+
+    const claimWindow = resolveRiichiAction(state, { seat: 3, type: "discard", tile: "p4" });
+    const passed = resolveRiichiAction(claimWindow, { seat: 0, type: "pass" });
+
+    expect(passed.claimWindow).toBeNull();
+    expect(passed.turnSeat).toBe(0);
+    expect(passed.players[0].hand.at(-1)).toBe("m9");
+    expect(passed.players[3].discards).toContain("p4");
+  });
+
   it("ends the hand instead of freezing when the wall is empty after a discard", () => {
     const state = createRiichiMatchState("empty-wall");
     state.liveWall = [];
