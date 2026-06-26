@@ -85,6 +85,7 @@ export function riichiHandResultFromState(state: RiichiMatchState): RiichiHandRe
     ippatsu: winner.ippatsu,
     doraIndicators: state.doraIndicators,
     uraDoraIndicators: state.uraDoraIndicators,
+    kanDoraIndicators: state.kanDoraIndicators,
     seatWind: seatWindFor(winnerSeat),
     roundWind: state.context.roundWind,
   });

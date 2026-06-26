@@ -2,7 +2,7 @@ import { appendMatchEvent, type JsonObject, type MatchEvent } from "../action-lo
 import { buildRiichiWall, type RiichiTile } from "./tiles";
 import { scoreRiichiHand } from "./scoring";
 import type { RiichiActionInput, RiichiActionOffer, RiichiClaimWindow, RiichiMatchState, RiichiPlayerState, RiichiSeat } from "./types";
-import { canRon, winningTiles } from "./waits";
+import { canRon, canTsumo, winningTiles } from "./waits";
 
 export interface CreateRiichiMatchOptions {
   playerNames?: readonly [string, string, string, string];
@@ -78,7 +78,11 @@ export function resolveRiichiAction(state: RiichiMatchState, action: RiichiActio
     return next;
   }
   if (action.type === "win") {
-    completeWin(next, action.seat, action.tile, "tsumo");
+    const tile = action.tile ?? state.players[action.seat].hand.at(-1);
+    if (!tile || !canClaimTsumo(state, action.seat, tile)) {
+      throw new Error("Tsumo is not available right now.");
+    }
+    completeWin(next, action.seat, tile, "tsumo");
     return next;
   }
 
@@ -266,6 +270,39 @@ function buildLocalClaimWindow(state: RiichiMatchState, discard: { seat: RiichiS
   return offers.length > 0 ? { discard, offers } : null;
 }
 
+function canClaimTsumo(state: RiichiMatchState, seat: RiichiSeat, tile: RiichiTile): boolean {
+  const player = state.players[seat];
+  const tileIndex = player.hand.lastIndexOf(tile);
+  if (tileIndex === -1) return false;
+
+  const handBeforeDraw = [...player.hand.slice(0, tileIndex), ...player.hand.slice(tileIndex + 1)];
+  let waits: RiichiTile[];
+  try {
+    waits = winningTiles(handBeforeDraw, player.melds);
+  } catch {
+    return false;
+  }
+  if (!waits.includes(tile) || !canTsumo(player, waits)) return false;
+
+  try {
+    return scoreRiichiHand({
+      hand: player.hand,
+      melds: player.melds,
+      winningTile: tile,
+      winBy: "tsumo",
+      riichi: player.riichi,
+      doubleRiichi: player.doubleRiichi,
+      ippatsu: player.ippatsu,
+      doraIndicators: state.doraIndicators,
+      uraDoraIndicators: state.uraDoraIndicators,
+      kanDoraIndicators: state.kanDoraIndicators,
+      seatWind: seatWinds[seat],
+      roundWind: state.context.roundWind,
+    }).legal;
+  } catch {
+    return false;
+  }
+}
 function canClaimRon(state: RiichiMatchState, seat: RiichiSeat, tile: RiichiTile): boolean {
   const player = state.players[seat];
   let waits: RiichiTile[];

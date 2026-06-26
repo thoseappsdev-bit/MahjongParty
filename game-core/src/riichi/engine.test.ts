@@ -50,6 +50,12 @@ describe("authoritative Riichi hand engine", () => {
   });
 
 
+  it("rejects an illegal local Tsumo before completing the hand", () => {
+    const state = createRiichiMatchState("riichi-illegal-tsumo");
+    const tile = state.players[0].hand.at(-1);
+
+    expect(() => resolveRiichiAction(state, { seat: 0, type: "win", tile })).toThrow("Tsumo is not available right now.");
+  });
   it("opens and resolves a local Ron claim with payer metadata", () => {
     const state = createRiichiMatchState("riichi-ron-claim");
     state.turnSeat = 3;

@@ -180,6 +180,46 @@ describe("WRC Riichi match progression", () => {
     );
   });
 
+  it("includes kan dora when deriving authoritative Riichi settlement", () => {
+    const completed = state({
+      phase: "complete",
+      context: { dealerSeat: 0, honba: 0, riichiSticks: 0 },
+      doraIndicators: [],
+      uraDoraIndicators: [],
+      kanDoraIndicators: ["p1"],
+      players: [
+        {
+          hand: ["m2", "m3", "m4", "p2", "p3", "p4", "s2", "s3", "s4", "m6", "m7", "m8", "p2", "p2"],
+          melds: [],
+        },
+      ],
+      auditLog: [
+        {
+          sequence: 1,
+          occurredAt: 1,
+          source: "player",
+          action: { type: "win", actorSeat: 0, payload: { tile: "p2", winBy: "tsumo" } },
+        },
+      ],
+    });
+
+    const score = scoreRiichiHand({
+      hand: completed.players[0].hand,
+      winningTile: "p2",
+      winBy: "tsumo",
+      doraIndicators: [],
+      uraDoraIndicators: [],
+      kanDoraIndicators: ["p1"],
+      seatWind: "we",
+      roundWind: "we",
+    });
+    const result = riichiHandResultFromState(completed);
+
+    expect(score.yaku.some((line) => line.id === "kan-dora")).toBe(true);
+    expect(result?.kind === "win" ? result.deltas : null).toEqual(
+      settleRiichiWin(score, { winnerSeat: 0, winBy: "tsumo", dealerSeat: 0, honba: 0, riichiSticks: 0 }),
+    );
+  });
   it("derives Riichi Ron settlement from a completed claim win", () => {
     const state = createRiichiMatchState("riichi-real-ron-settle");
     state.turnSeat = 3;
