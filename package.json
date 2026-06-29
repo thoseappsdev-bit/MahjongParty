@@ -21,11 +21,11 @@
     "production:smoke": "node scripts/smoke-production.mjs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260616.1",
-    "playwright": "^1.60.0",
-    "turbo": "2.9.18",
+    "@cloudflare/workers-types": "^4.20260629.1",
+    "playwright": "^1.61.1",
+    "turbo": "2.10.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.8",
-    "wrangler": "^4.100.0"
+    "vitest": "4.1.9",
+    "wrangler": "^4.105.0"
   }
 }
