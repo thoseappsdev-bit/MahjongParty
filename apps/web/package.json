@@ -16,14 +16,14 @@
     "@mahjong/i18n": "workspace:*",
     "@mahjong/shared-types": "workspace:*",
     "@mahjong/ui": "workspace:*",
-    "@supabase/supabase-js": "^2.108.2",
-    "@vitejs/plugin-react": "6.0.2",
-    "lucide-react": "1.18.0",
+    "@supabase/supabase-js": "^2.110.0",
+    "@vitejs/plugin-react": "6.0.3",
+    "lucide-react": "1.23.0",
     "pixi.js": "^8.19.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "tslib": "^2.8.1",
-    "vite": "8.0.16"
+    "vite": "8.1.3"
   },
   "devDependencies": {
     "@types/react": "19.2.17",
